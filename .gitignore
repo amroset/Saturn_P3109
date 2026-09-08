@@ -11,3 +11,4 @@ target/
 *.#*
 *.dump
 *.riscv
+__pycache__/
