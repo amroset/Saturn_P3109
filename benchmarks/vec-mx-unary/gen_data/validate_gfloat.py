@@ -9,7 +9,7 @@ Run it before trusting gfloat as the reference, and again after any gfloat
 upgrade.  It needs no RISC-V toolchain and no simulator -- just the committed
 data.S -- so it works as a plain CI check.
 
-  ./validate_gfloat.py [path/to/data.S]
+  ./validate_gfloat.py [path/to/data.S]   # defaults to ../data.S.spike-golden
 """
 
 import math
@@ -58,8 +58,10 @@ def unpack(words, esize):
 
 
 def main():
+    # Default to the Spike-generated file, not data.S: data.S is now produced by
+    # gen_data.py from gfloat, so comparing against it would be circular.
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        os.path.join(os.path.dirname(__file__), "..", "data.S")
+        os.path.join(os.path.dirname(__file__), "..", "data.S.spike-golden")
     arrays = parse(path)
     if "N" not in arrays:
         sys.exit(f"no arrays parsed from {path}")

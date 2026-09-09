@@ -12,3 +12,4 @@ target/
 *.dump
 *.riscv
 __pycache__/
+benchmarks/vec-mx-unary/results/
