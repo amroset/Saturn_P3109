@@ -25,6 +25,7 @@ from gfloat import RoundMode  # noqa: E402
 from gfloat.formats import format_info_binary16, format_info_binary32  # noqa: E402
 from gfloat_ref import (  # noqa: E402
     BF16,
+    FRM,
     FP8_STANDARDS,
     convert,
     narrowing_inputs,
@@ -48,12 +49,20 @@ def emit(out, std, count):
     print_uint32(out, "N", count)
 
     def narrow(name, src, dst, ssz, dsz, sat=False):
+        """One array pair per rounding mode -- rounding is what narrowing exercises.
+
+        The input vectors are identical across modes, so a mismatch isolates the
+        rounding mode rather than the operand.
+        """
         inp = narrowing_inputs(dst, count)
-        out_bits = [convert(src, dst, b, RoundMode.TiesToEven, sat) for b in inp]
-        print_array(out, name, "", inp, ssz)
-        print_array(out, name, "_out", out_bits, dsz)
+        for mode, (_frm, rnd) in FRM.items():
+            bits = [convert(src, dst, b, rnd, sat) for b in inp]
+            print_array(out, f"{name}_{mode}", "", inp, ssz)
+            print_array(out, f"{name}_{mode}", "_out", bits, dsz)
 
     def widen(name, src, dst, ssz, dsz):
+        # Widening is exact -- every source value is representable in the wider
+        # format -- so the rounding mode cannot change the result. One array only.
         inp = widening_inputs(src, count) if src.k == 8 else narrowing_inputs(src, count)
         out_bits = [convert(src, dst, b) for b in inp]
         print_array(out, name, "", inp, ssz)

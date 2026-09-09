@@ -38,6 +38,17 @@ from gfloat.types import Domain, Signedness
 
 BF16 = format_info_bfloat16
 
+# RISC-V frm encodings and the gfloat mode each selects.  The two agree 1:1;
+# hardfloat's constants happen to use the same numbering, so Saturn passes frm
+# straight through to RoundAnyRawFNToRecFN with no translation.
+FRM = {
+    "rne": (0, RoundMode.TiesToEven),     # nearest, ties to even
+    "rtz": (1, RoundMode.TowardZero),
+    "rdn": (2, RoundMode.TowardNegative),
+    "rup": (3, RoundMode.TowardPositive),
+    "rmm": (4, RoundMode.TiesToAway),     # nearest, ties away from zero
+}
+
 # altfmt=0 and altfmt=1 respectively, for each supported 8-bit standard.
 FP8_STANDARDS = {
     "ocp": {
