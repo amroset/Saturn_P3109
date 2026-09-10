@@ -54,7 +54,7 @@ def emit(out, std, count):
         The input vectors are identical across modes, so a mismatch isolates the
         rounding mode rather than the operand.
         """
-        inp = narrowing_inputs(dst, count)
+        inp = narrowing_inputs(dst, count, src_fi=src)
         for mode, (_frm, rnd) in FRM.items():
             bits = [convert(src, dst, b, rnd, sat) for b in inp]
             print_array(out, f"{name}_{mode}", "", inp, ssz)
@@ -63,7 +63,8 @@ def emit(out, std, count):
     def widen(name, src, dst, ssz, dsz):
         # Widening is exact -- every source value is representable in the wider
         # format -- so the rounding mode cannot change the result. One array only.
-        inp = widening_inputs(src, count) if src.k == 8 else narrowing_inputs(src, count)
+        # 16-bit sources: probe the source's own edges, encoded in the source.
+        inp = widening_inputs(src, count) if src.k == 8 else narrowing_inputs(src, count, src_fi=src)
         out_bits = [convert(src, dst, b) for b in inp]
         print_array(out, name, "", inp, ssz)
         print_array(out, name, "_out", out_bits, dsz)

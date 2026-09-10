@@ -98,24 +98,44 @@ def convert(src_fi, dst_fi, bits, rnd=RoundMode.TiesToEven, sat=False):
 
 def _bf16(v):
     """Nearest BF16 bit pattern to a real value."""
-    return encode_float(BF16, round_float(BF16, v, rnd=RoundMode.TiesToEven))
+    return _enc(BF16, v)
 
 
-def narrowing_inputs(dst_fi, count=128, seed=0):
-    """BF16 bit patterns chosen to exercise the BF16 -> 8-bit narrowing path.
+def _enc(fi, v):
+    """Nearest bit pattern in format `fi` to a real value."""
+    return encode_float(fi, round_float(fi, v, rnd=RoundMode.TiesToEven))
+
+
+def narrowing_inputs(dst_fi, count=128, seed=0, src_fi=BF16):
+    """Bit patterns in `src_fi` chosen to exercise narrowing into `dst_fi`.
 
     Deliberately biased toward the encodings where the implementation is
     delicate: the top binade (where a P3109 or OCP encoder must splice a
     wider-exponent rounder in), the overflow threshold, the subnormal
-    boundary, exact ties, and negative values that round to zero.
+    boundary, exact ties, negative values that round to zero, and the
+    extremes of the source format itself.
+
+    The patterns are encoded in `src_fi`, so they must match the source the
+    caller converts from -- FP32 for the FP32 -> FP16/BF16 arrays.  Passing
+    dst_fi as src_fi probes a format's own edges, which is what the 16-bit
+    widening arrays want.
     """
     vals = []
 
     # Specials.  -0.0 matters: P3109 has no negative zero, so it must flush to
     # +0 rather than land on the NaN code point.
-    vals += [_bf16(0.0), _bf16(-0.0)]
-    vals += [encode_float(BF16, float("inf")), encode_float(BF16, float("-inf"))]
-    vals += [CANONICAL_NAN["bfloat16"]]
+    vals += [_enc(src_fi, 0.0), _enc(src_fi, -0.0)]
+    vals += [encode_float(src_fi, float("inf")), encode_float(src_fi, float("-inf"))]
+    vals += [CANONICAL_NAN[src_fi.name]]
+
+    # Extremes of the source format.  The groups below track the destination's
+    # edges and never reach the source's own top binade.  That binade matters
+    # for P3109: the x2 input scaling must not turn it into infinities, because
+    # an infinite operand suppresses the rounder's overflow flag -- and the
+    # result then changes under SatNone with rounding toward zero, and under
+    # SatPropagate always.
+    for v in (src_fi.max, 2.0 ** src_fi.emax):
+        vals += [_enc(src_fi, v), _enc(src_fi, -v)]
 
     maxn = dst_fi.max
     minn = dst_fi.smallest_normal
@@ -124,17 +144,17 @@ def narrowing_inputs(dst_fi, count=128, seed=0):
 
     # Straddle the overflow threshold in both directions.
     for scale in (0.9, 0.999, 1.0, 1.001, 1.5, 2.0, 1e3):
-        vals += [_bf16(maxn * scale), _bf16(-maxn * scale)]
+        vals += [_enc(src_fi, maxn * scale), _enc(src_fi, -maxn * scale)]
 
     # Inside the top binade: everything at or above 2^emax is where the
     # narrow rounder's exponent field saturates and the splice takes over.
     top = 2.0 ** dst_fi.emax
     for f in (1.0, 1.125, 1.25, 1.5, 1.75, 1.9375):
-        vals += [_bf16(top * f), _bf16(-top * f)]
+        vals += [_enc(src_fi, top * f), _enc(src_fi, -top * f)]
 
     # Subnormal boundary and gradual underflow.
     for v in (minn, minn * 0.5, mins, mins * 0.5, mins * 0.49, mins * 1.5):
-        vals += [_bf16(v), _bf16(-v)]
+        vals += [_enc(src_fi, v), _enc(src_fi, -v)]
 
     # Exact ties, to separate TiesToEven from TiesToAway.  Halfway between
     # consecutive representable values at a few magnitudes.
@@ -142,13 +162,13 @@ def narrowing_inputs(dst_fi, count=128, seed=0):
         step = 2.0 ** (e - (dst_fi.precision - 1))
         base = 2.0 ** e
         for k in (0, 1, 2):
-            vals += [_bf16(base + k * 2 * step + step), _bf16(-(base + k * 2 * step + step))]
+            vals += [_enc(src_fi, base + k * 2 * step + step), _enc(src_fi, -(base + k * 2 * step + step))]
 
     # Random fill across the format's full dynamic range.
     rng = random.Random(seed)
     while len(vals) < count:
         mag = math.exp(rng.uniform(math.log(mins / 4), math.log(maxn * 2)))
-        vals.append(_bf16(mag if rng.random() < 0.5 else -mag))
+        vals.append(_enc(src_fi, mag if rng.random() < 0.5 else -mag))
 
     return vals[:count]
 
