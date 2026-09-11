@@ -162,13 +162,20 @@ def narrowing_inputs(dst_fi, count=128, seed=0, src_fi=BF16):
     for v in (minn, minn * 0.5, mins, mins * 0.5, mins * 0.49, mins * 1.5):
         vals += [_enc(src_fi, v), _enc(src_fi, -v)]
 
-    # Exact ties, to separate TiesToEven from TiesToAway.  Halfway between
-    # consecutive representable values at a few magnitudes.
+    # Exact ties: values exactly halfway between two neighbouring destination
+    # numbers, at a few magnitudes.  `step` is the gap between neighbours (one
+    # ULP), so the halfway points are base + (2k+1) * step/2.  For k = 0 and 2
+    # the neighbour below is even, where TiesToEven rounds down and TiesToAway
+    # rounds up, so the two modes must disagree.  For k = 1 the neighbour below
+    # is odd, where TiesToEven has to round up to reach an even neighbour.
+    # (An earlier version used base + (2k+1) * step: whole ULPs, i.e. values
+    # that are representable and never ties.)
     for e in (dst_fi.emax - 1, 0, emin + 1):
         step = 2.0 ** (e - (dst_fi.precision - 1))
         base = 2.0 ** e
         for k in (0, 1, 2):
-            vals += [_enc(src_fi, base + k * 2 * step + step), _enc(src_fi, -(base + k * 2 * step + step))]
+            tie = base + (2 * k + 1) * step / 2
+            vals += [_enc(src_fi, tie), _enc(src_fi, -tie)]
 
     # Random fill across the format's full dynamic range.
     rng = random.Random(seed)

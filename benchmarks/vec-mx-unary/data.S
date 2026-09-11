@@ -55,24 +55,24 @@ fp16_narrow_rne:
     .word 0xB2FAE148
     .word 0x33C00000
     .word 0xB3C00000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46801000
+    .word 0xC6801000
+    .word 0x46803000
+    .word 0xC6803000
+    .word 0x46805000
+    .word 0xC6805000
+    .word 0x3F801000
+    .word 0xBF801000
+    .word 0x3F803000
+    .word 0xBF803000
+    .word 0x3F805000
+    .word 0xBF805000
+    .word 0x39001000
+    .word 0xB9001000
+    .word 0x39003000
+    .word 0xB9003000
+    .word 0x39005000
+    .word 0xB9005000
     .word 0xC49EA1EC
     .word 0x3B87B350
     .word 0x3D7D418B
@@ -290,16 +290,16 @@ fp16_narrow_rne_out:
     .word 0x00008001
     .word 0x00008000
     .word 0x00028000
-    .word 0x74018002
-    .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
-    .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
-    .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F58805
+    .word 0x74008002
+    .word 0x7402F400
+    .word 0x7402F402
+    .word 0x3C00F402
+    .word 0x3C02BC00
+    .word 0x3C02BC02
+    .word 0x0800BC02
+    .word 0x08028800
+    .word 0x08028802
+    .word 0xE4F58802
     .word 0x2BEA1C3E
     .word 0xA5A15A83
     .word 0x8458F023
@@ -445,24 +445,24 @@ fp16_narrow_rtz:
     .word 0xB2FAE148
     .word 0x33C00000
     .word 0xB3C00000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46801000
+    .word 0xC6801000
+    .word 0x46803000
+    .word 0xC6803000
+    .word 0x46805000
+    .word 0xC6805000
+    .word 0x3F801000
+    .word 0xBF801000
+    .word 0x3F803000
+    .word 0xBF803000
+    .word 0x3F805000
+    .word 0xBF805000
+    .word 0x39001000
+    .word 0xB9001000
+    .word 0x39003000
+    .word 0xB9003000
+    .word 0x39005000
+    .word 0xB9005000
     .word 0xC49EA1EC
     .word 0x3B87B350
     .word 0x3D7D418B
@@ -680,16 +680,16 @@ fp16_narrow_rtz_out:
     .word 0x00008001
     .word 0x00008000
     .word 0x00018000
-    .word 0x74018001
-    .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
-    .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
-    .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F58805
+    .word 0x74008001
+    .word 0x7401F400
+    .word 0x7402F401
+    .word 0x3C00F402
+    .word 0x3C01BC00
+    .word 0x3C02BC01
+    .word 0x0800BC02
+    .word 0x08018800
+    .word 0x08028801
+    .word 0xE4F58802
     .word 0x2BEA1C3D
     .word 0xA5A15A82
     .word 0x8457F022
@@ -835,24 +835,24 @@ fp16_narrow_rdn:
     .word 0xB2FAE148
     .word 0x33C00000
     .word 0xB3C00000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46801000
+    .word 0xC6801000
+    .word 0x46803000
+    .word 0xC6803000
+    .word 0x46805000
+    .word 0xC6805000
+    .word 0x3F801000
+    .word 0xBF801000
+    .word 0x3F803000
+    .word 0xBF803000
+    .word 0x3F805000
+    .word 0xBF805000
+    .word 0x39001000
+    .word 0xB9001000
+    .word 0x39003000
+    .word 0xB9003000
+    .word 0x39005000
+    .word 0xB9005000
     .word 0xC49EA1EC
     .word 0x3B87B350
     .word 0x3D7D418B
@@ -1070,16 +1070,16 @@ fp16_narrow_rdn_out:
     .word 0x00008001
     .word 0x00008001
     .word 0x00018001
-    .word 0x74018002
-    .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
-    .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
-    .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F68805
+    .word 0x74008002
+    .word 0x7401F401
+    .word 0x7402F402
+    .word 0x3C00F403
+    .word 0x3C01BC01
+    .word 0x3C02BC02
+    .word 0x0800BC03
+    .word 0x08018801
+    .word 0x08028802
+    .word 0xE4F68803
     .word 0x2BEA1C3D
     .word 0xA5A25A82
     .word 0x8458F023
@@ -1225,24 +1225,24 @@ fp16_narrow_rup:
     .word 0xB2FAE148
     .word 0x33C00000
     .word 0xB3C00000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46801000
+    .word 0xC6801000
+    .word 0x46803000
+    .word 0xC6803000
+    .word 0x46805000
+    .word 0xC6805000
+    .word 0x3F801000
+    .word 0xBF801000
+    .word 0x3F803000
+    .word 0xBF803000
+    .word 0x3F805000
+    .word 0xBF805000
+    .word 0x39001000
+    .word 0xB9001000
+    .word 0x39003000
+    .word 0xB9003000
+    .word 0x39005000
+    .word 0xB9005000
     .word 0xC49EA1EC
     .word 0x3B87B350
     .word 0x3D7D418B
@@ -1461,15 +1461,15 @@ fp16_narrow_rup_out:
     .word 0x00018000
     .word 0x00028000
     .word 0x74018001
+    .word 0x7402F400
     .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
+    .word 0x3C01F402
+    .word 0x3C02BC00
     .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
+    .word 0x0801BC02
+    .word 0x08028800
     .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F58805
+    .word 0xE4F58802
     .word 0x2BEB1C3E
     .word 0xA5A15A83
     .word 0x8457F022
@@ -1615,24 +1615,24 @@ fp16_narrow_rmm:
     .word 0xB2FAE148
     .word 0x33C00000
     .word 0xB3C00000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46801000
+    .word 0xC6801000
+    .word 0x46803000
+    .word 0xC6803000
+    .word 0x46805000
+    .word 0xC6805000
+    .word 0x3F801000
+    .word 0xBF801000
+    .word 0x3F803000
+    .word 0xBF803000
+    .word 0x3F805000
+    .word 0xBF805000
+    .word 0x39001000
+    .word 0xB9001000
+    .word 0x39003000
+    .word 0xB9003000
+    .word 0x39005000
+    .word 0xB9005000
     .word 0xC49EA1EC
     .word 0x3B87B350
     .word 0x3D7D418B
@@ -1851,15 +1851,15 @@ fp16_narrow_rmm_out:
     .word 0x00008001
     .word 0x00028000
     .word 0x74018002
-    .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
-    .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
-    .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F58805
+    .word 0x7402F401
+    .word 0x7403F402
+    .word 0x3C01F403
+    .word 0x3C02BC01
+    .word 0x3C03BC02
+    .word 0x0801BC03
+    .word 0x08028801
+    .word 0x08038802
+    .word 0xE4F58803
     .word 0x2BEA1C3E
     .word 0xA5A15A83
     .word 0x8458F023
@@ -2005,24 +2005,24 @@ bf16_narrow_rne:
     .word 0x80007D71
     .word 0x00018000
     .word 0x80018000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E808000
+    .word 0xFE808000
+    .word 0x7E818000
+    .word 0xFE818000
+    .word 0x7E828000
+    .word 0xFE828000
+    .word 0x3F808000
+    .word 0xBF808000
+    .word 0x3F818000
+    .word 0xBF818000
+    .word 0x3F828000
+    .word 0xBF828000
+    .word 0x01008000
+    .word 0x81008000
+    .word 0x01018000
+    .word 0x81018000
+    .word 0x01028000
+    .word 0x81028000
     .word 0xEB72A0B4
     .word 0x33828E48
     .word 0x3F7B5D6B
@@ -2240,16 +2240,16 @@ bf16_narrow_rne_out:
     .word 0x00008001
     .word 0x00008000
     .word 0x00028000
-    .word 0x7E818002
-    .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
-    .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
-    .word 0x01038101
-    .word 0x01058103
-    .word 0xEB738105
+    .word 0x7E808002
+    .word 0x7E82FE80
+    .word 0x7E82FE82
+    .word 0x3F80FE82
+    .word 0x3F82BF80
+    .word 0x3F82BF82
+    .word 0x0100BF82
+    .word 0x01028100
+    .word 0x01028102
+    .word 0xEB738102
     .word 0x3F7B3383
     .word 0xBAE26372
     .word 0xA129F3D5
@@ -2395,24 +2395,24 @@ bf16_narrow_rtz:
     .word 0x80007D71
     .word 0x00018000
     .word 0x80018000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E808000
+    .word 0xFE808000
+    .word 0x7E818000
+    .word 0xFE818000
+    .word 0x7E828000
+    .word 0xFE828000
+    .word 0x3F808000
+    .word 0xBF808000
+    .word 0x3F818000
+    .word 0xBF818000
+    .word 0x3F828000
+    .word 0xBF828000
+    .word 0x01008000
+    .word 0x81008000
+    .word 0x01018000
+    .word 0x81018000
+    .word 0x01028000
+    .word 0x81028000
     .word 0xEB72A0B4
     .word 0x33828E48
     .word 0x3F7B5D6B
@@ -2630,16 +2630,16 @@ bf16_narrow_rtz_out:
     .word 0x00008001
     .word 0x00008000
     .word 0x00018000
-    .word 0x7E818001
-    .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
-    .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
-    .word 0x01038101
-    .word 0x01058103
-    .word 0xEB728105
+    .word 0x7E808001
+    .word 0x7E81FE80
+    .word 0x7E82FE81
+    .word 0x3F80FE82
+    .word 0x3F81BF80
+    .word 0x3F82BF81
+    .word 0x0100BF82
+    .word 0x01018100
+    .word 0x01028101
+    .word 0xEB728102
     .word 0x3F7B3382
     .word 0xBAE16371
     .word 0xA129F3D5
@@ -2785,24 +2785,24 @@ bf16_narrow_rdn:
     .word 0x80007D71
     .word 0x00018000
     .word 0x80018000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E808000
+    .word 0xFE808000
+    .word 0x7E818000
+    .word 0xFE818000
+    .word 0x7E828000
+    .word 0xFE828000
+    .word 0x3F808000
+    .word 0xBF808000
+    .word 0x3F818000
+    .word 0xBF818000
+    .word 0x3F828000
+    .word 0xBF828000
+    .word 0x01008000
+    .word 0x81008000
+    .word 0x01018000
+    .word 0x81018000
+    .word 0x01028000
+    .word 0x81028000
     .word 0xEB72A0B4
     .word 0x33828E48
     .word 0x3F7B5D6B
@@ -3020,16 +3020,16 @@ bf16_narrow_rdn_out:
     .word 0x00008001
     .word 0x00008001
     .word 0x00018001
-    .word 0x7E818002
-    .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
-    .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
-    .word 0x01038101
-    .word 0x01058103
-    .word 0xEB738105
+    .word 0x7E808002
+    .word 0x7E81FE81
+    .word 0x7E82FE82
+    .word 0x3F80FE83
+    .word 0x3F81BF81
+    .word 0x3F82BF82
+    .word 0x0100BF83
+    .word 0x01018101
+    .word 0x01028102
+    .word 0xEB738103
     .word 0x3F7B3382
     .word 0xBAE26371
     .word 0xA12AF3D6
@@ -3175,24 +3175,24 @@ bf16_narrow_rup:
     .word 0x80007D71
     .word 0x00018000
     .word 0x80018000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E808000
+    .word 0xFE808000
+    .word 0x7E818000
+    .word 0xFE818000
+    .word 0x7E828000
+    .word 0xFE828000
+    .word 0x3F808000
+    .word 0xBF808000
+    .word 0x3F818000
+    .word 0xBF818000
+    .word 0x3F828000
+    .word 0xBF828000
+    .word 0x01008000
+    .word 0x81008000
+    .word 0x01018000
+    .word 0x81018000
+    .word 0x01028000
+    .word 0x81028000
     .word 0xEB72A0B4
     .word 0x33828E48
     .word 0x3F7B5D6B
@@ -3411,15 +3411,15 @@ bf16_narrow_rup_out:
     .word 0x00018000
     .word 0x00028000
     .word 0x7E818001
+    .word 0x7E82FE80
     .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
+    .word 0x3F81FE82
+    .word 0x3F82BF80
     .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
+    .word 0x0101BF82
+    .word 0x01028100
     .word 0x01038101
-    .word 0x01058103
-    .word 0xEB728105
+    .word 0xEB728102
     .word 0x3F7C3383
     .word 0xBAE16372
     .word 0xA129F3D5
@@ -3565,24 +3565,24 @@ bf16_narrow_rmm:
     .word 0x80007D71
     .word 0x00018000
     .word 0x80018000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E808000
+    .word 0xFE808000
+    .word 0x7E818000
+    .word 0xFE818000
+    .word 0x7E828000
+    .word 0xFE828000
+    .word 0x3F808000
+    .word 0xBF808000
+    .word 0x3F818000
+    .word 0xBF818000
+    .word 0x3F828000
+    .word 0xBF828000
+    .word 0x01008000
+    .word 0x81008000
+    .word 0x01018000
+    .word 0x81018000
+    .word 0x01028000
+    .word 0x81028000
     .word 0xEB72A0B4
     .word 0x33828E48
     .word 0x3F7B5D6B
@@ -3801,15 +3801,15 @@ bf16_narrow_rmm_out:
     .word 0x00008001
     .word 0x00028000
     .word 0x7E818002
-    .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
-    .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
-    .word 0x01038101
-    .word 0x01058103
-    .word 0xEB738105
+    .word 0x7E82FE81
+    .word 0x7E83FE82
+    .word 0x3F81FE83
+    .word 0x3F82BF81
+    .word 0x3F83BF82
+    .word 0x0101BF83
+    .word 0x01028101
+    .word 0x01038102
+    .word 0xEB738103
     .word 0x3F7B3383
     .word 0xBAE26372
     .word 0xA129F3D5
@@ -3931,16 +3931,16 @@ e5m2_narrow_rne:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -4050,12 +4050,12 @@ e5m2_narrow_rne_out:
     .word 0x04FC7CFB
     .word 0x01820284
     .word 0x00800081
-    .word 0x75820280
-    .word 0x78F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C040BF
-    .word 0x0C8B0B89
-    .word 0x3B2EE98C
+    .word 0x74820280
+    .word 0x76F676F4
+    .word 0x3EBC3CF6
+    .word 0x08BE3EBE
+    .word 0x0A8A0A88
+    .word 0x3B2EE98A
     .word 0x9BF2B661
     .word 0x9FE5F24A
     .word 0xF3B035F1
@@ -4129,16 +4129,16 @@ e5m2_narrow_rtz:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -4248,12 +4248,12 @@ e5m2_narrow_rtz_out:
     .word 0x04FB7BFB
     .word 0x01820284
     .word 0x00800081
-    .word 0x75810180
-    .word 0x78F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C040BF
-    .word 0x0C8B0B89
-    .word 0x3A2EE98C
+    .word 0x74810180
+    .word 0x76F575F4
+    .word 0x3DBC3CF6
+    .word 0x08BE3EBD
+    .word 0x0A890988
+    .word 0x3A2EE98A
     .word 0x9BF2B660
     .word 0x9EE4F249
     .word 0xF2B035F0
@@ -4327,16 +4327,16 @@ e5m2_narrow_rdn:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -4446,12 +4446,12 @@ e5m2_narrow_rdn_out:
     .word 0x04FC7BFB
     .word 0x01820284
     .word 0x00810081
-    .word 0x75820181
-    .word 0x78F777F5
-    .word 0x3FBD3DF9
-    .word 0x09C140BF
-    .word 0x0C8B0B89
-    .word 0x3A2EEA8D
+    .word 0x74820181
+    .word 0x76F675F5
+    .word 0x3DBD3CF7
+    .word 0x08BF3EBE
+    .word 0x0A8A0989
+    .word 0x3A2EEA8B
     .word 0x9BF3B760
     .word 0x9FE5F349
     .word 0xF3B135F1
@@ -4525,16 +4525,16 @@ e5m2_narrow_rup:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -4645,11 +4645,11 @@ e5m2_narrow_rup_out:
     .word 0x01820284
     .word 0x01800181
     .word 0x75810280
-    .word 0x79F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C041BF
-    .word 0x0D8B0B89
-    .word 0x3B2FE98C
+    .word 0x77F576F4
+    .word 0x3EBC3DF6
+    .word 0x09BE3FBD
+    .word 0x0B890A88
+    .word 0x3B2FE98A
     .word 0x9BF2B661
     .word 0x9EE4F24A
     .word 0xF2B036F0
@@ -4723,16 +4723,16 @@ e5m2_narrow_rmm:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -4843,11 +4843,11 @@ e5m2_narrow_rmm_out:
     .word 0x01820284
     .word 0x00810181
     .word 0x75820280
-    .word 0x79F777F5
-    .word 0x3FBD3DF9
-    .word 0x09C141BF
-    .word 0x0D8B0B89
-    .word 0x3B2EE98D
+    .word 0x77F676F5
+    .word 0x3EBD3DF7
+    .word 0x09BF3FBE
+    .word 0x0B8A0A89
+    .word 0x3B2EE98B
     .word 0x9BF2B661
     .word 0x9FE5F24A
     .word 0xF3B035F1
@@ -4921,16 +4921,16 @@ e4m3_narrow_rne:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -5040,12 +5040,12 @@ e4m3_narrow_rne_out:
     .word 0x087F7FFE
     .word 0x01840488
     .word 0x00800081
-    .word 0x71820280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x70820280
+    .word 0x72F272F0
+    .word 0x3AB838F2
+    .word 0x10BA3ABA
+    .word 0x12921290
+    .word 0x3425EC92
     .word 0x8FF7AF62
     .word 0x93E6F747
     .word 0xF8A82EF5
@@ -5119,16 +5119,16 @@ e4m3_narrow_rtz:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -5238,12 +5238,12 @@ e4m3_narrow_rtz_out:
     .word 0x08FE7EFE
     .word 0x01840488
     .word 0x00800081
-    .word 0x71810180
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EB95
+    .word 0x70810180
+    .word 0x72F171F0
+    .word 0x39B838F2
+    .word 0x10BA3AB9
+    .word 0x12911190
+    .word 0x3425EB92
     .word 0x8EF6AF61
     .word 0x92E6F746
     .word 0xF8A82EF5
@@ -5317,16 +5317,16 @@ e4m3_narrow_rdn:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -5436,12 +5436,12 @@ e4m3_narrow_rdn_out:
     .word 0x087F7EFE
     .word 0x01840488
     .word 0x00810081
-    .word 0x71820181
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x70820181
+    .word 0x72F271F1
+    .word 0x39B938F3
+    .word 0x10BB3ABA
+    .word 0x12921191
+    .word 0x3425EC93
     .word 0x8FF7B061
     .word 0x93E7F846
     .word 0xF8A92EF5
@@ -5515,16 +5515,16 @@ e4m3_narrow_rup:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -5635,11 +5635,11 @@ e4m3_narrow_rup_out:
     .word 0x01840488
     .word 0x01800181
     .word 0x71810280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3526EB95
+    .word 0x73F172F0
+    .word 0x3AB839F2
+    .word 0x11BA3BB9
+    .word 0x13911290
+    .word 0x3526EB92
     .word 0x8EF6AF62
     .word 0x92E6F747
     .word 0xF8A82FF5
@@ -5713,16 +5713,16 @@ e4m3_narrow_rmm:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -5833,11 +5833,11 @@ e4m3_narrow_rmm_out:
     .word 0x01840488
     .word 0x00810181
     .word 0x71820280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x73F272F1
+    .word 0x3AB939F3
+    .word 0x11BB3BBA
+    .word 0x13921291
+    .word 0x3425EC93
     .word 0x8FF7AF62
     .word 0x93E7F747
     .word 0xF8A82EF5
@@ -5911,16 +5911,16 @@ e5m2_narrow_sat_rne:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -6030,12 +6030,12 @@ e5m2_narrow_sat_rne_out:
     .word 0x04FB7BFB
     .word 0x01820284
     .word 0x00800081
-    .word 0x75820280
-    .word 0x78F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C040BF
-    .word 0x0C8B0B89
-    .word 0x3B2EE98C
+    .word 0x74820280
+    .word 0x76F676F4
+    .word 0x3EBC3CF6
+    .word 0x08BE3EBE
+    .word 0x0A8A0A88
+    .word 0x3B2EE98A
     .word 0x9BF2B661
     .word 0x9FE5F24A
     .word 0xF3B035F1
@@ -6109,16 +6109,16 @@ e5m2_narrow_sat_rtz:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -6228,12 +6228,12 @@ e5m2_narrow_sat_rtz_out:
     .word 0x04FB7BFB
     .word 0x01820284
     .word 0x00800081
-    .word 0x75810180
-    .word 0x78F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C040BF
-    .word 0x0C8B0B89
-    .word 0x3A2EE98C
+    .word 0x74810180
+    .word 0x76F575F4
+    .word 0x3DBC3CF6
+    .word 0x08BE3EBD
+    .word 0x0A890988
+    .word 0x3A2EE98A
     .word 0x9BF2B660
     .word 0x9EE4F249
     .word 0xF2B035F0
@@ -6307,16 +6307,16 @@ e5m2_narrow_sat_rdn:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -6426,12 +6426,12 @@ e5m2_narrow_sat_rdn_out:
     .word 0x04FB7BFB
     .word 0x01820284
     .word 0x00810081
-    .word 0x75820181
-    .word 0x78F777F5
-    .word 0x3FBD3DF9
-    .word 0x09C140BF
-    .word 0x0C8B0B89
-    .word 0x3A2EEA8D
+    .word 0x74820181
+    .word 0x76F675F5
+    .word 0x3DBD3CF7
+    .word 0x08BF3EBE
+    .word 0x0A8A0989
+    .word 0x3A2EEA8B
     .word 0x9BF3B760
     .word 0x9FE5F349
     .word 0xF3B135F1
@@ -6505,16 +6505,16 @@ e5m2_narrow_sat_rup:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -6625,11 +6625,11 @@ e5m2_narrow_sat_rup_out:
     .word 0x01820284
     .word 0x01800181
     .word 0x75810280
-    .word 0x79F777F5
-    .word 0x3FBD3DF8
-    .word 0x09C041BF
-    .word 0x0D8B0B89
-    .word 0x3B2FE98C
+    .word 0x77F576F4
+    .word 0x3EBC3DF6
+    .word 0x09BE3FBD
+    .word 0x0B890A88
+    .word 0x3B2FE98A
     .word 0x9BF2B661
     .word 0x9EE4F24A
     .word 0xF2B036F0
@@ -6703,16 +6703,16 @@ e5m2_narrow_sat_rmm:
     .word 0x3700B780
     .word 0x36FBB700
     .word 0x37C0B6FB
-    .word 0x46A0B7C0
-    .word 0x46E0C6A0
-    .word 0x4710C6E0
-    .word 0x3FA0C710
-    .word 0x3FE0BFA0
-    .word 0x4010BFE0
-    .word 0x3920C010
-    .word 0x3960B920
-    .word 0x3990B960
-    .word 0xC528B990
+    .word 0x4690B7C0
+    .word 0x46B0C690
+    .word 0x46D0C6B0
+    .word 0x3F90C6D0
+    .word 0x3FB0BF90
+    .word 0x3FD0BFB0
+    .word 0x3910BFD0
+    .word 0x3930B910
+    .word 0x3950B930
+    .word 0xC528B950
     .word 0x3F5E3DC7
     .word 0xBEC1441C
     .word 0xBB60C643
@@ -6823,11 +6823,11 @@ e5m2_narrow_sat_rmm_out:
     .word 0x01820284
     .word 0x00810181
     .word 0x75820280
-    .word 0x79F777F5
-    .word 0x3FBD3DF9
-    .word 0x09C141BF
-    .word 0x0D8B0B89
-    .word 0x3B2EE98D
+    .word 0x77F676F5
+    .word 0x3EBD3DF7
+    .word 0x09BF3FBE
+    .word 0x0B8A0A89
+    .word 0x3B2EE98B
     .word 0x9BF2B661
     .word 0x9FE5F24A
     .word 0xF3B035F1
@@ -6901,16 +6901,16 @@ e4m3_narrow_sat_rne:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -7020,12 +7020,12 @@ e4m3_narrow_sat_rne_out:
     .word 0x08FE7EFE
     .word 0x01840488
     .word 0x00800081
-    .word 0x71820280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x70820280
+    .word 0x72F272F0
+    .word 0x3AB838F2
+    .word 0x10BA3ABA
+    .word 0x12921290
+    .word 0x3425EC92
     .word 0x8FF7AF62
     .word 0x93E6F747
     .word 0xF8A82EF5
@@ -7099,16 +7099,16 @@ e4m3_narrow_sat_rtz:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -7218,12 +7218,12 @@ e4m3_narrow_sat_rtz_out:
     .word 0x08FE7EFE
     .word 0x01840488
     .word 0x00800081
-    .word 0x71810180
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EB95
+    .word 0x70810180
+    .word 0x72F171F0
+    .word 0x39B838F2
+    .word 0x10BA3AB9
+    .word 0x12911190
+    .word 0x3425EB92
     .word 0x8EF6AF61
     .word 0x92E6F746
     .word 0xF8A82EF5
@@ -7297,16 +7297,16 @@ e4m3_narrow_sat_rdn:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -7416,12 +7416,12 @@ e4m3_narrow_sat_rdn_out:
     .word 0x08FE7EFE
     .word 0x01840488
     .word 0x00810081
-    .word 0x71820181
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x70820181
+    .word 0x72F271F1
+    .word 0x39B938F3
+    .word 0x10BB3ABA
+    .word 0x12921191
+    .word 0x3425EC93
     .word 0x8FF7B061
     .word 0x93E7F846
     .word 0xF8A92EF5
@@ -7495,16 +7495,16 @@ e4m3_narrow_sat_rup:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -7615,11 +7615,11 @@ e4m3_narrow_sat_rup_out:
     .word 0x01840488
     .word 0x01800181
     .word 0x71810280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3526EB95
+    .word 0x73F172F0
+    .word 0x3AB839F2
+    .word 0x11BA3BB9
+    .word 0x13911290
+    .word 0x3526EB92
     .word 0x8EF6AF62
     .word 0x92E6F747
     .word 0xF8A82FF5
@@ -7693,16 +7693,16 @@ e4m3_narrow_sat_rmm:
     .word 0x3A80BB00
     .word 0x3A7BBA80
     .word 0x3B40BA7B
-    .word 0x4310BB40
-    .word 0x4330C310
-    .word 0x4350C330
-    .word 0x3F90C350
-    .word 0x3FB0BF90
-    .word 0x3FD0BFB0
-    .word 0x3D10BFD0
-    .word 0x3D30BD10
-    .word 0x3D50BD30
-    .word 0xC2BEBD50
+    .word 0x4308BB40
+    .word 0x4318C308
+    .word 0x4328C318
+    .word 0x3F88C328
+    .word 0x3F98BF88
+    .word 0x3FA8BF98
+    .word 0x3D08BFA8
+    .word 0x3D18BD08
+    .word 0x3D28BD18
+    .word 0xC2BEBD28
     .word 0x3F473E57
     .word 0xBEF2421F
     .word 0xBCE9C36E
@@ -7813,11 +7813,11 @@ e4m3_narrow_sat_rmm_out:
     .word 0x01840488
     .word 0x00810181
     .word 0x71820280
-    .word 0x75F373F1
-    .word 0x3BB939F5
-    .word 0x11BD3DBB
-    .word 0x15931391
-    .word 0x3425EC95
+    .word 0x73F272F1
+    .word 0x3AB939F3
+    .word 0x11BB3BBA
+    .word 0x13921291
+    .word 0x3425EC93
     .word 0x8FF7AF62
     .word 0x93E7F747
     .word 0xF8A82EF5
@@ -7891,16 +7891,16 @@ fp16_widen:
     .word 0x00008001
     .word 0x00008000
     .word 0x00028000
-    .word 0x74018002
-    .word 0x7403F401
-    .word 0x7405F403
-    .word 0x3C01F405
-    .word 0x3C03BC01
-    .word 0x3C05BC03
-    .word 0x0801BC05
-    .word 0x08038801
-    .word 0x08058803
-    .word 0xE4F58805
+    .word 0x74008002
+    .word 0x7402F400
+    .word 0x7402F402
+    .word 0x3C00F402
+    .word 0x3C02BC00
+    .word 0x3C02BC02
+    .word 0x0800BC02
+    .word 0x08028800
+    .word 0x08028802
+    .word 0xE4F58802
     .word 0x2BEA1C3E
     .word 0xA5A15A83
     .word 0x8458F023
@@ -8046,24 +8046,24 @@ fp16_widen_out:
     .word 0x80000000
     .word 0x34000000
     .word 0xB4000000
-    .word 0x46802000
-    .word 0xC6802000
-    .word 0x46806000
-    .word 0xC6806000
-    .word 0x4680A000
-    .word 0xC680A000
-    .word 0x3F802000
-    .word 0xBF802000
-    .word 0x3F806000
-    .word 0xBF806000
-    .word 0x3F80A000
-    .word 0xBF80A000
-    .word 0x39002000
-    .word 0xB9002000
-    .word 0x39006000
-    .word 0xB9006000
-    .word 0x3900A000
-    .word 0xB900A000
+    .word 0x46800000
+    .word 0xC6800000
+    .word 0x46804000
+    .word 0xC6804000
+    .word 0x46804000
+    .word 0xC6804000
+    .word 0x3F800000
+    .word 0xBF800000
+    .word 0x3F804000
+    .word 0xBF804000
+    .word 0x3F804000
+    .word 0xBF804000
+    .word 0x39000000
+    .word 0xB9000000
+    .word 0x39004000
+    .word 0xB9004000
+    .word 0x39004000
+    .word 0xB9004000
     .word 0xC49EA000
     .word 0x3B87C000
     .word 0x3D7D4000
@@ -8281,16 +8281,16 @@ bf16_widen:
     .word 0x00008001
     .word 0x00008000
     .word 0x00028000
-    .word 0x7E818002
-    .word 0x7E83FE81
-    .word 0x7E85FE83
-    .word 0x3F81FE85
-    .word 0x3F83BF81
-    .word 0x3F85BF83
-    .word 0x0101BF85
-    .word 0x01038101
-    .word 0x01058103
-    .word 0xEB738105
+    .word 0x7E808002
+    .word 0x7E82FE80
+    .word 0x7E82FE82
+    .word 0x3F80FE82
+    .word 0x3F82BF80
+    .word 0x3F82BF82
+    .word 0x0100BF82
+    .word 0x01028100
+    .word 0x01028102
+    .word 0xEB738102
     .word 0x3F7B3383
     .word 0xBAE26372
     .word 0xA129F3D5
@@ -8436,24 +8436,24 @@ bf16_widen_out:
     .word 0x80000000
     .word 0x00020000
     .word 0x80020000
-    .word 0x7E810000
-    .word 0xFE810000
-    .word 0x7E830000
-    .word 0xFE830000
-    .word 0x7E850000
-    .word 0xFE850000
-    .word 0x3F810000
-    .word 0xBF810000
-    .word 0x3F830000
-    .word 0xBF830000
-    .word 0x3F850000
-    .word 0xBF850000
-    .word 0x01010000
-    .word 0x81010000
-    .word 0x01030000
-    .word 0x81030000
-    .word 0x01050000
-    .word 0x81050000
+    .word 0x7E800000
+    .word 0xFE800000
+    .word 0x7E820000
+    .word 0xFE820000
+    .word 0x7E820000
+    .word 0xFE820000
+    .word 0x3F800000
+    .word 0xBF800000
+    .word 0x3F820000
+    .word 0xBF820000
+    .word 0x3F820000
+    .word 0xBF820000
+    .word 0x01000000
+    .word 0x81000000
+    .word 0x01020000
+    .word 0x81020000
+    .word 0x01020000
+    .word 0x81020000
     .word 0xEB730000
     .word 0x33830000
     .word 0x3F7B0000

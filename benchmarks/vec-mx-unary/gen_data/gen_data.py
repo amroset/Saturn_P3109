@@ -5,7 +5,7 @@ Replaces gen_data.c + gen_data.sh, which used Spike as the golden model.  Spike
 has no IEEE P3109 support, so it cannot serve once the conversion unit is
 retargeted.  gfloat covers OCP FP8 and P3109 with one API.
 
-  ./gen_data.py --std ocp   > ../data.S      # reproduces today's coverage
+  ./gen_data.py --std ocp   > ../data.S      # OCP FP8 build (the committed data.S)
   ./gen_data.py --std p3109 > ../data.S      # for a P3109-configured build
   ./gen_data.py --std p3109-finite > ../data.S   # P3109, finite domain (P3109Finite... build)
 
