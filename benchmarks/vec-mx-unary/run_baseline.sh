@@ -4,7 +4,8 @@
 # regenerate the vectors, cross-compile, and run on Verilator.
 #
 #   ./run_baseline.sh              # OCP FP8 baseline
-#   ./run_baseline.sh p3109        # once the RTL is built for P3109
+#   ./run_baseline.sh p3109        # P3109, both formats in the extended domain
+#   ./run_baseline.sh p3109-finite # P3109, both formats in the finite domain
 #   ./run_baseline.sh ocp --gen-only     # skip the 18-minute simulator step
 #
 # Every run is logged to results/<std>-<config>-<timestamp>.log, and
@@ -12,7 +13,10 @@
 #
 # Environment overrides:
 #   GFLOAT_PYTHON  interpreter that has gfloat installed (needs >= 3.12)
-#   CONFIG         Chipyard config whose simulator binary to run
+#   CONFIG         Chipyard config whose simulator binary to run. By default it
+#                  follows the standard: ocp -> MXV256D128ShuttleConfig,
+#                  p3109 -> P3109V256D128ShuttleConfig,
+#                  p3109-finite -> P3109FiniteV256D128ShuttleConfig
 #   N              elements per array
 #
 # Note: do NOT add `set -u`. Chipyard's env.sh sources the conda hook, which
@@ -23,9 +27,9 @@ STD=ocp
 GEN_ONLY=0
 for arg in "$@"; do
 	case "$arg" in
-		ocp|p3109) STD=$arg ;;
+		ocp|p3109|p3109-finite) STD=$arg ;;
 		--gen-only) GEN_ONLY=1 ;;
-		*) echo "usage: $0 [ocp|p3109] [--gen-only]" >&2; exit 2 ;;
+		*) echo "usage: $0 [ocp|p3109|p3109-finite] [--gen-only]" >&2; exit 2 ;;
 	esac
 done
 
@@ -33,7 +37,14 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 bmarks=$(dirname "$here")
 cydir=$(cd "$bmarks/../../.." && pwd)
 
-CONFIG=${CONFIG:-MXV256D128ShuttleConfig}
+# Each standard needs the simulator built for it: P3109 vectors run against the
+# OCP hardware would "fail" for reasons that have nothing to do with the RTL.
+case "$STD" in
+	ocp)          default_config=MXV256D128ShuttleConfig ;;
+	p3109)        default_config=P3109V256D128ShuttleConfig ;;
+	p3109-finite) default_config=P3109FiniteV256D128ShuttleConfig ;;
+esac
+CONFIG=${CONFIG:-$default_config}
 N=${N:-256}
 GFLOAT_PYTHON=${GFLOAT_PYTHON:-$HOME/venvs/gfloat/bin/python}
 sim=$cydir/sims/verilator/simulator-chipyard.harness-$CONFIG

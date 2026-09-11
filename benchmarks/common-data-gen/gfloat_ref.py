@@ -59,6 +59,12 @@ FP8_STANDARDS = {
         "altfmt0": format_info_p3109(8, 4, Signedness.Signed, Domain.Extended),
         "altfmt1": format_info_p3109(8, 3, Signedness.Signed, Domain.Extended),
     },
+    # Both P3109 formats in the finite domain: no infinities, 0x7F / 0xFF are the
+    # largest numbers.  Matches the P3109FiniteV256D128ShuttleConfig build.
+    "p3109-finite": {
+        "altfmt0": format_info_p3109(8, 4, Signedness.Signed, Domain.Finite),
+        "altfmt1": format_info_p3109(8, 3, Signedness.Signed, Domain.Finite),
+    },
 }
 
 # Canonical NaN each format is expected to produce.  P3109 has exactly one NaN
