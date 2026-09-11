@@ -10,19 +10,25 @@ import saturn.common._
 import saturn.insns._
 import hardfloat._
 
-case class FPConvFactory(mxConversion: Boolean) extends FunctionalUnitFactory {
+// p3109 = None: the 8-bit conversions use OCP FP8 (E4M3 / E5M2).
+// p3109 = Some(...): they use IEEE P3109 (binary8p4 / binary8p3) instead, and the
+// P3109Formats inside says which domain each one uses (see p3109Fp8.scala).
+// It only changes which 8-bit formats are used, so it needs the 8-bit
+// conversion instructions (mxConversion) to exist.
+case class FPConvFactory(mxConversion: Boolean, p3109: Option[P3109Formats] = None) extends FunctionalUnitFactory {
+  require(p3109.isEmpty || mxConversion, "P3109 needs useMxConversion")
   def insns = Seq(
     FCVT_SGL.restrictSEW(1,2,3),
     if (mxConversion) FCVT_NRW.restrictSEW(0,1,2) else FCVT_NRW.restrictSEW(1,2),
     FCVT_WID.restrictSEW(0,1,2)
   ).flatten.map(_.pipelined(3))
-  def generate(implicit p: Parameters) = new FPConvPipe(mxConversion)(p)
+  def generate(implicit p: Parameters) = new FPConvPipe(mxConversion, p3109)(p)
 }
 
 // Fixed depth 3
 // s0 - convert to raw/recoded
 // s1/s2 - perform conversion
-class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters {
+class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters {
   val io = IO(new Bundle {
     val valid = Input(Bool())
     val in = Input(UInt(64.W))
@@ -41,6 +47,11 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
     val out = Output(UInt(64.W))
     val exc = Output(Vec(8, UInt(FPConstants.FLAGS_SZ.W)))
   })
+
+  // Which 8-bit formats this build uses. These are build-time choices, not wires.
+  val isP3109  = p3109.isDefined                              // P3109 instead of OCP
+  val p4Finite = p3109.exists(_.p4 == P3109Domain.Finite)     // binary8p4 uses the finite domain
+  val p3Finite = p3109.exists(_.p3 == P3109Domain.Finite)     // binary8p3 uses the finite domain
 
   def f2raw(t: FType, in: UInt) = rawFloatFromFN(t.exp, t.sig, in)
 
@@ -72,7 +83,10 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   val raw32 = VecInit(in32.map(u => f2raw(FType.S, u)))
   val raw16 = VecInit(in16.map(u => f2raw(FType.H, u)))
   val rawBF16 = VecInit(in16.map(u => f2raw(MXFType.BF16, u)))
-  val raw8 = VecInit(in8.map(u => f2raw(MXFType.E5M3, fp8ToE5M3(u, io.in_altfmt))))
+  // 8-bit inputs (on their way to BF16) are first rewritten as E5M3 numbers.
+  // The P3109 build reads its formats with p3109ToE5M3 instead of the OCP reader.
+  val raw8 = VecInit(in8.map(u => f2raw(MXFType.E5M3,
+    if (isP3109) p3109ToE5M3(u, io.in_altfmt, p4Finite, p3Finite) else fp8ToE5M3(u, io.in_altfmt))))
 
   val raw32as64 = VecInit(raw32.map(r => raw2raw(FType.D, r)))
   val raw8as64 = VecInit(raw8.map(r => raw2raw(FType.D, r)))
@@ -152,9 +166,11 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   val h2s = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.H.exp, FType.H.sig, FType.S.exp, FType.S.sig)))
   val s2d = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.D.exp, FType.D.sig)))
 
-  val bf162e5m3 = Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E5M3.exp, MXFType.E5M3.sig)))
-  val bf162e4m3 = Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E4M3.exp, MXFType.E4M3.sig)))
-  val bf162e5m2 = Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E5M2.exp, MXFType.E5M2.sig)))
+  // The three OCP 8-bit rounders below are only built in the OCP build. The P3109
+  // build has its own four rounders instead (see "P3109 narrowing" further down).
+  val bf162e5m3 = if (isP3109) Seq() else Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E5M3.exp, MXFType.E5M3.sig)))
+  val bf162e4m3 = if (isP3109) Seq() else Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E4M3.exp, MXFType.E4M3.sig)))
+  val bf162e5m2 = if (isP3109) Seq() else Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, MXFType.E5M2.exp, MXFType.E5M2.sig)))
   val s2bf16 = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, MXFType.BF16.exp, MXFType.BF16.sig)))
   val s2h = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.H.exp, FType.H.sig)))
   val d2s = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.D.exp, FType.D.sig, FType.S.exp, FType.S.sig)))
@@ -169,18 +185,20 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   h2s(1).io.in := RegEnable(raw2rec(FType.H, raw16(2)), io.valid)
   s2d(0).io.in := RegEnable(raw2rec(FType.S, raw32(0)), io.valid)
 
-  bf162e5m3(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
-  bf162e5m3(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
-  bf162e5m3(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
-  bf162e5m3(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
-  bf162e4m3(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
-  bf162e4m3(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
-  bf162e4m3(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
-  bf162e4m3(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
-  bf162e5m2(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
-  bf162e5m2(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
-  bf162e5m2(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
-  bf162e5m2(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
+  if (!isP3109) {  // OCP build only
+    bf162e5m3(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
+    bf162e5m3(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
+    bf162e5m3(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
+    bf162e5m3(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
+    bf162e4m3(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
+    bf162e4m3(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
+    bf162e4m3(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
+    bf162e4m3(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
+    bf162e5m2(0).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(0)), io.valid)
+    bf162e5m2(1).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(1)), io.valid)
+    bf162e5m2(2).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(2)), io.valid)
+    bf162e5m2(3).io.in := RegEnable(raw2rec(MXFType.BF16, rawBF16(3)), io.valid)
+  }
   s2bf16(0).io.in := RegEnable(raw2rec(FType.S, raw32(0)), io.valid)
   s2bf16(1).io.in := RegEnable(raw2rec(FType.S, raw32(1)), io.valid)
   s2h(0).io.in := RegEnable(raw2rec(FType.S, raw32(0)), io.valid)
@@ -194,6 +212,62 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   (bf162e5m3 ++ bf162e4m3 ++ bf162e5m2 ++ s2bf16 ++ s2h ++ d2s).foreach { f2f =>
     f2f.io.roundingMode := Mux(s1_rto, "b110".U, s1_frm)
   }
+
+  // ===========================================================================
+  // P3109 narrowing: BF16 -> binary8p4 (altfmt = 0) or binary8p3 (altfmt = 1)
+  // ===========================================================================
+  // Only built in a P3109 build; in the OCP build this block makes no hardware.
+  // For each of the 4 BF16 lanes it:
+  //   1. doubles the number (p3109TimesTwo), then holds it in a register until
+  //      the next pipeline stage, where the rounders are,
+  //   2. rounds it four times at once: a narrow and a wide rounder for each of
+  //      the two 8-bit formats,
+  //   3. lets assembleP3109P4 / assembleP3109P3 pick the right answer and fix
+  //      up the special codes.
+  // p3109Fp8.scala explains why each step is needed.
+  val (p3109P4Out, p3109P3Out, p3109P4Exc, p3109P3Exc): (Seq[UInt], Seq[UInt], Seq[UInt], Seq[UInt]) = if (isP3109) {
+    // Step 1. The number is doubled here, and only here: the BF16 -> FP32 path
+    // above reads rawBF16 directly and must keep the original, undoubled value.
+    val doubled = rawBF16.map(r => RegEnable(p3109TimesTwo(r), io.valid))
+
+    // Step 2. One rounder: it takes a raw BF16-shaped number and rounds it into
+    // the format t. This is the second half of hardfloat's RecFNToRecFN (the
+    // first half only unpacks a recoded number into the raw form, which we
+    // already have), set up exactly the way RecFNToRecFN sets it up.
+    def rounder(t: FType, in: hardfloat.RawFloat) = {
+      val r = Module(new hardfloat.RoundAnyRawFNToRecFN(
+        MXFType.BF16.exp, MXFType.BF16.sig, t.exp, t.sig, hardfloat.consts.flRoundOpt_sigMSBitAlwaysZero))
+      r.io.in := in
+      r.io.invalidExc := hardfloat.isSigNaNRawFloat(in)   // a signalling NaN raises "invalid"
+      r.io.infiniteExc := false.B
+      r.io.roundingMode := Mux(s1_rto, "b110".U, s1_frm)  // same rounding mode as the OCP rounders
+      r.io.detectTininess := hardfloat.consts.tininess_afterRounding
+      r
+    }
+    val p4Wide   = doubled.map(r => rounder(MXFType.E5M3, r))  // binary8p4: can reach the top row
+    val p4Narrow = doubled.map(r => rounder(MXFType.E4M3, r))  // binary8p4: right everywhere else
+    val p3Wide   = doubled.map(r => rounder(MXFType.E6M2, r))  // binary8p3: can reach the top row
+    val p3Narrow = doubled.map(r => rounder(MXFType.E5M2, r))  // binary8p3: right everywhere else
+
+    // Step 3. Build the 8-bit codes and hold them for the last pipeline stage.
+    // The last argument is the wide rounder's overflow flag (bit 2 of its flags).
+    val p4Out = p4Wide.zip(p4Narrow).map { case (wide, narrow) =>
+      RegEnable(assembleP3109P4(MXFType.E5M3.ieee(wide.io.out), MXFType.E4M3.ieee(narrow.io.out),
+        s1_sat, Mux(s1_rto, "b110".U, s1_frm), wide.io.exceptionFlags(2), p4Finite), s1_valid) }
+    val p3Out = p3Wide.zip(p3Narrow).map { case (wide, narrow) =>
+      RegEnable(assembleP3109P3(MXFType.E6M2.ieee(wide.io.out), MXFType.E5M2.ieee(narrow.io.out),
+        s1_sat, Mux(s1_rto, "b110".U, s1_frm), wide.io.exceptionFlags(2), p3Finite), s1_valid) }
+
+    // Exception flags: for now, simply combine the flags of both rounders, the
+    // way the OCP E4M3 path does. Making them exactly right for P3109 is a
+    // separate, later step.
+    val p4Exc = p4Wide.zip(p4Narrow).map { case (wide, narrow) =>
+      RegEnable(wide.io.exceptionFlags | narrow.io.exceptionFlags, s1_valid) }
+    val p3Exc = p3Wide.zip(p3Narrow).map { case (wide, narrow) =>
+      RegEnable(wide.io.exceptionFlags | narrow.io.exceptionFlags, s1_valid) }
+
+    (p4Out, p3Out, p4Exc, p3Exc)
+  } else (Seq(), Seq(), Seq(), Seq())
 
   val out = WireInit(0.U(64.W))
   val exc = WireInit(0.U.asTypeOf(Vec(8, UInt(FPConstants.FLAGS_SZ.W))))
@@ -222,8 +296,10 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   val h2s_out = h2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val s2d_out = s2d.map(f => RegEnable(FType.D.ieee(f.io.out), s1_valid))
 
-  val bf162e5m2_out = bf162e5m2.map(f => RegEnable(saturateE5M2(MXFType.E5M2.ieee(f.io.out), s1_sat), s1_valid))
-  val bf162e4m3_out = bf162e5m3.zip(bf162e4m3).map(f => RegEnable(assembleOFPE4M3(MXFType.E5M3.ieee(f._1.io.out), MXFType.E4M3.ieee(f._2.io.out), s1_sat, Mux(s1_rto, "b110".U, s1_frm), f._1.io.exceptionFlags(2)), s1_valid))
+  // The altfmt = 1 slot holds OCP E5M2, or binary8p3 in the P3109 build.
+  val bf162e5m2_out = if (isP3109) p3109P3Out else bf162e5m2.map(f => RegEnable(saturateE5M2(MXFType.E5M2.ieee(f.io.out), s1_sat), s1_valid))
+  // The altfmt = 0 slot holds OCP E4M3, or binary8p4 in the P3109 build.
+  val bf162e4m3_out = if (isP3109) p3109P4Out else bf162e5m3.zip(bf162e4m3).map(f => RegEnable(assembleOFPE4M3(MXFType.E5M3.ieee(f._1.io.out), MXFType.E4M3.ieee(f._2.io.out), s1_sat, Mux(s1_rto, "b110".U, s1_frm), f._1.io.exceptionFlags(2)), s1_valid))
   val s2bf16_out = s2bf16.map(f => RegEnable(MXFType.BF16.ieee(f.io.out), s1_valid))
   val s2h_out = s2h.map(f => RegEnable(FType.H.ieee(f.io.out), s1_valid))
   val d2s_out = d2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
@@ -233,8 +309,8 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   val h2s_exc = h2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val s2d_exc = s2d.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
 
-  val bf162e5m2_exc = bf162e5m2.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
-  val bf162e4m3_exc = bf162e5m3.zip(bf162e4m3).map(f => RegEnable(f._1.io.exceptionFlags | f._2.io.exceptionFlags, s1_valid))
+  val bf162e5m2_exc = if (isP3109) p3109P3Exc else bf162e5m2.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
+  val bf162e4m3_exc = if (isP3109) p3109P4Exc else bf162e5m3.zip(bf162e4m3).map(f => RegEnable(f._1.io.exceptionFlags | f._2.io.exceptionFlags, s1_valid))
   val s2bf16_exc = s2bf16.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val s2h_exc = s2h.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val d2s_exc = d2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
@@ -315,8 +391,8 @@ class FPConvBlock(mxConversion: Boolean)(implicit p: Parameters) extends CoreMod
   }
 }
 
-class FPConvPipe(mxConversion: Boolean)(implicit p: Parameters) extends PipelinedFunctionalUnit(3)(p) with HasFPUParameters {
-  val supported_insns = FPConvFactory(mxConversion).insns
+class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(implicit p: Parameters) extends PipelinedFunctionalUnit(3)(p) with HasFPUParameters {
+  val supported_insns = FPConvFactory(mxConversion, p3109).insns
 
   io.set_vxsat := false.B
   io.stall := false.B
@@ -341,7 +417,7 @@ class FPConvPipe(mxConversion: Boolean)(implicit p: Parameters) extends Pipeline
   val expanded_rvs2_data = narrow2_expand(rvs2_data.asTypeOf(Vec(dLenB, UInt(8.W))), rvs2_eew,
     hi, false.B).asUInt
 
-  val conv_blocks = Seq.fill(dLen/64) { Module(new FPConvBlock(mxConversion)) }
+  val conv_blocks = Seq.fill(dLen/64) { Module(new FPConvBlock(mxConversion, p3109)) }
   conv_blocks.zipWithIndex.foreach { case (c,i) =>
     c.io.valid := io.pipe(0).valid
     c.io.in := Mux(ctrl_widen && !ctrl_narrow,
