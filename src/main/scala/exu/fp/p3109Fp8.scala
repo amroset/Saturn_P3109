@@ -301,3 +301,61 @@ object p3109ToE5M3 {
     Mux(isNaN, nan, Mux(isInf, infinity, Mux(isZero, 0.U(9.W), number)))
   }
 }
+
+
+// -----------------------------------------------------------------------------
+// Rounds the FMA unit's result into a P3109 8-bit code (binary8p4 / binary8p3).
+// -----------------------------------------------------------------------------
+// The multiply-add circuit (FPFMAPipe.scala) hands over its result unrounded: a
+// raw number carrying a few extra digits, so that it gets rounded exactly once,
+// here. This is the P3109 version of rawUnroundedToFp8 (e5M3ToFp8.scala), and it
+// uses the same three ideas as the conversion unit: "half as much" (double the
+// number first), "the top row is missing" (a narrow and a wide rounder for each
+// format), and "special codes" (the assemble functions above).
+//
+// There is no saturation: the FMA instructions have no saturating form.
+//
+// One extra step comes before the doubling. hardfloat sizes the result's exponent
+// field to just fit the largest possible product, so adding 1 to it could run past
+// the top of the field. And hardfloat's rounder silently stops checking for
+// overflow and underflow whenever its input exponent is narrower than its output
+// exponent -- which would happen for the 6-bit E6M2 rounder when the multiply-add
+// works in a 5-bit-exponent format (E5M3 or FP16). Rewriting the result with one
+// more exponent bit first (the same value, in a wider field) fixes both.
+//
+// Returns the 8-bit code and the exception flags. The flags are, for now, simply
+// the flags of both rounders combined, as in the conversion unit; making them
+// exactly right for P3109 is a separate, later step.
+object rawUnroundedToP3109 {
+  def apply(unroundedType: FType, unroundedIn: hardfloat.RawFloat, invalidExc: Bool,
+            altfmt: Bool, roundingMode: Bits, formats: P3109Formats): (UInt, UInt) = {
+    // The same number with one more exponent bit, then doubled.
+    val expWidth = unroundedType.exp + 1
+    val sigWidth = unroundedType.sig + 2
+    val doubled = p3109TimesTwo(hardfloat.resizeRawFloat(expWidth, sigWidth, unroundedIn))
+
+    // One rounder into the format t, set up like the ones in rawUnroundedToFp8.
+    def rounder(t: FType) = {
+      val r = Module(new hardfloat.RoundAnyRawFNToRecFN(expWidth, sigWidth, t.exp, t.sig, 0))
+      r.io.in := doubled
+      r.io.invalidExc := invalidExc   // e.g. 0 x Inf, already detected by the multiply-add
+      r.io.infiniteExc := false.B
+      r.io.roundingMode := roundingMode
+      r.io.detectTininess := hardfloat.consts.tininess_afterRounding
+      r
+    }
+    val p4Wide   = rounder(MXFType.E5M3)   // binary8p4: can reach the top row
+    val p4Narrow = rounder(MXFType.E4M3)   // binary8p4: right everywhere else
+    val p3Wide   = rounder(MXFType.E6M2)   // binary8p3: can reach the top row
+    val p3Narrow = rounder(MXFType.E5M2)   // binary8p3: right everywhere else
+
+    val p4 = assembleP3109P4(MXFType.E5M3.ieee(p4Wide.io.out), MXFType.E4M3.ieee(p4Narrow.io.out),
+      false.B, roundingMode, p4Wide.io.exceptionFlags(2), formats.p4 == P3109Domain.Finite)
+    val p3 = assembleP3109P3(MXFType.E6M2.ieee(p3Wide.io.out), MXFType.E5M2.ieee(p3Narrow.io.out),
+      false.B, roundingMode, p3Wide.io.exceptionFlags(2), formats.p3 == P3109Domain.Finite)
+
+    val p4Flags = p4Wide.io.exceptionFlags | p4Narrow.io.exceptionFlags
+    val p3Flags = p3Wide.io.exceptionFlags | p3Narrow.io.exceptionFlags
+    (Mux(altfmt, p3, p4), Mux(altfmt, p3Flags, p4Flags))   // altfmt = 1 is binary8p3
+  }
+}

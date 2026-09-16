@@ -61,8 +61,10 @@ object VectorParams {
     useMxConversion = true,
   )
 
-  // Same as mxParams, but the 8-bit conversions use IEEE P3109 (binary8p4 / binary8p3)
-  // instead of OCP FP8 (E4M3 / E5M2). Both formats in the extended domain (with infinities).
+  // Same as mxParams, but every 8-bit float in the vector unit is IEEE P3109
+  // (binary8p4 / binary8p3) instead of OCP FP8 (E4M3 / E5M2): both the conversion
+  // instructions and the multiply-add unit's 8-bit operands and results.
+  // Both formats in the extended domain (with infinities).
   def p3109Params = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended))
   )
@@ -185,8 +187,8 @@ object VXFunctionalUnitGroups {
   def sharedFPFMA(pipeDepth: Int) = Seq(
     SharedScalarFPFMAFactory(pipeDepth)
   )
-  def fpFMA(pipeDepth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean) = Seq(
-    SIMDFPFMAFactory(pipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA)
+  def fpFMA(pipeDepth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, p3109: Option[P3109Formats] = None) = Seq(
+    SIMDFPFMAFactory(pipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA, p3109)
   )
   def fpMisc(useMxConversion: Boolean, p3109: Option[P3109Formats] = None) = Seq(
     FPDivSqrtFactory,
@@ -196,7 +198,7 @@ object VXFunctionalUnitGroups {
 
   def allFPFUs(fmaPipeDepth: Int, useScalarFPFMA: Boolean, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, useMxConversion: Boolean, p3109: Option[P3109Formats] = None) = {
     require(!(useScalarFPFMA && useMxFPFMA))
-    (if (useScalarFPFMA) sharedFPFMA(fmaPipeDepth) else fpFMA(fmaPipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA)) ++
+    (if (useScalarFPFMA) sharedFPFMA(fmaPipeDepth) else fpFMA(fmaPipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA, p3109)) ++
     fpMisc(useMxConversion, p3109)
   }
 }
@@ -283,7 +285,7 @@ object VectorIssueStructure {
             allFPFUs(params.fmaPipeDepth, params.useScalarFPFMA, params.useElementwiseFP64, params.useSegmentedFPFMA, params.useMxFPFMA, params.useMxConversion, params.p3109) ++
             (if (params.useIterativeIMul) Nil else integerMAC(params.imaPipeDepth, params.useSegmentedIMul))
           ),
-          VXSequencerParams("fp1", fpFMA(params.fmaPipeDepth, params.useElementwiseFP64, params.useSegmentedFPFMA, params.useMxFPFMA))
+          VXSequencerParams("fp1", fpFMA(params.fmaPipeDepth, params.useElementwiseFP64, params.useSegmentedFPFMA, params.useMxFPFMA, params.p3109))
         )
       )
       Seq(int_path, fp_path)
