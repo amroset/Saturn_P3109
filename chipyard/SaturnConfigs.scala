@@ -128,6 +128,22 @@ class P3109FiniteV256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// The same as P3109V256D128ShuttleConfig, but the conversion unit uses the
+// single runtime-selectable rounder instead of four fixed ones.
+class P3109UnifiedV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109UnifiedParams) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109UnifiedFiniteV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109UnifiedFiniteParams) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class REFV512D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(512, 128, VectorParams.refParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++

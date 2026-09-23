@@ -68,7 +68,13 @@ object P3109Domain {
 }
 case class P3109Formats(
   p4: P3109Domain = P3109Domain.Extended,   // binary8p4, the altfmt = 0 format
-  p3: P3109Domain = P3109Domain.Extended    // binary8p3, the altfmt = 1 format
+  p3: P3109Domain = P3109Domain.Extended,   // binary8p3, the altfmt = 1 format
+  // false: the four-rounder path in this file, with the x2 and the two
+  //        assemblers.  true: one P3109Rounder per lane instead, with the
+  //        format on a wire (see P3109Rounder.scala).  Both are meant to
+  //        produce identical results; the option exists so they can be
+  //        compared on real instructions before either is removed.
+  unified: Boolean = false
 )
 
 

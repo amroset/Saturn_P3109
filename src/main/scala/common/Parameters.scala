@@ -68,6 +68,14 @@ object VectorParams {
   def p3109Params = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended))
   )
+  // The same as p3109Params, but the conversion unit uses the single
+  // runtime-selectable rounder (P3109Rounder.scala) instead of four fixed ones.
+  def p3109UnifiedParams = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended, unified = true))
+  )
+  def p3109UnifiedFiniteParams = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, unified = true))
+  )
   // The same, with both formats in the finite domain (no infinities).
   def p3109FiniteParams = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))

@@ -50,6 +50,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
 
   // Which 8-bit formats this build uses. These are build-time choices, not wires.
   val isP3109  = p3109.isDefined                              // P3109 instead of OCP
+  val p3109Unified = p3109.exists(_.unified)
   val p4Finite = p3109.exists(_.p4 == P3109Domain.Finite)     // binary8p4 uses the finite domain
   val p3Finite = p3109.exists(_.p3 == P3109Domain.Finite)     // binary8p3 uses the finite domain
 
@@ -225,7 +226,28 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
   //   3. lets assembleP3109P4 / assembleP3109P3 pick the right answer and fix
   //      up the special codes.
   // p3109Fp8.scala explains why each step is needed.
-  val (p3109P4Out, p3109P3Out, p3109P4Exc, p3109P3Exc): (Seq[UInt], Seq[UInt], Seq[UInt], Seq[UInt]) = if (isP3109) {
+  val (p3109P4Out, p3109P3Out, p3109P4Exc, p3109P3Exc): (Seq[UInt], Seq[UInt], Seq[UInt], Seq[UInt]) = if (isP3109 && p3109Unified) {
+    // The unified path: one rounder per lane, with the format on a wire.
+    // Nothing is doubled here -- this rounder carries P3109's own bias, so
+    // there is no IEEE bias to compensate for.
+    val held = rawBF16.map(r => RegEnable(r, io.valid))
+    val rounders = held.map { r =>
+      val u = Module(new P3109Rounder(
+        MXFType.BF16.exp, MXFType.BF16.sig, p3109.get, sigMSBitAlwaysZero = true))
+      u.io.in             := r
+      u.io.altfmt         := s1_altfmt
+      u.io.roundingMode   := Mux(s1_rto, "b110".U, s1_frm)
+      u.io.sat            := s1_sat
+      u.io.invalidExc     := hardfloat.isSigNaNRawFloat(r)
+      u.io.detectTininess := hardfloat.consts.tininess_afterRounding
+      u
+    }
+    val outs = rounders.map(u => RegEnable(u.io.out, s1_valid))
+    val excs = rounders.map(u => RegEnable(u.io.exceptionFlags, s1_valid))
+    // The rounder has already picked the format, so both sides of the altfmt
+    // mux further down get the same wire.
+    (outs, outs, excs, excs)
+  } else if (isP3109) {
     // Step 1. The number is doubled here, and only here: the BF16 -> FP32 path
     // above reads rawBF16 directly and must keep the original, undoubled value.
     val doubled = rawBF16.map(r => RegEnable(p3109TimesTwo(r), io.valid))
