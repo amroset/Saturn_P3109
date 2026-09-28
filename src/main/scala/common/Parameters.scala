@@ -76,6 +76,18 @@ object VectorParams {
   def p3109UnifiedFiniteParams = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, unified = true))
   )
+  // The unified build plus block scaling in the conversion unit: ConvertFromBlock
+  // on the widening side, ConvertToBlock on the narrowing side (see
+  // p3109Block.scala). No instruction delivers a scale yet, so every lane is
+  // given 2^0 and this behaves exactly like p3109UnifiedParams.
+  def p3109BlockParams = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended,
+                              unified = true, block = true))
+  )
+  def p3109BlockFiniteParams = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite,
+                              unified = true, block = true))
+  )
   // The same, with both formats in the finite domain (no infinities).
   def p3109FiniteParams = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))

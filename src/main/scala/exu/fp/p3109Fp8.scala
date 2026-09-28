@@ -74,8 +74,16 @@ case class P3109Formats(
   //        format on a wire (see P3109Rounder.scala).  Both are meant to
   //        produce identical results; the option exists so they can be
   //        compared on real instructions before either is removed.
-  unified: Boolean = false
-)
+  unified: Boolean = false,
+  // true: the conversion unit also applies a block scale factor, giving
+  //       ConvertFromBlock (5.5.1) on the widening side and ConvertToBlock
+  //       (5.5.2) on the narrowing side.  See p3109Block.scala.  Needs
+  //       `unified`, because the narrowing side scales the raw number just
+  //       before the single rounder.
+  block: Boolean = false
+) {
+  require(!block || unified, "P3109 block support needs the unified rounder")
+}
 
 
 // -----------------------------------------------------------------------------
