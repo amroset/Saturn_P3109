@@ -71,9 +71,12 @@ case class P3109Formats(
   p3: P3109Domain = P3109Domain.Extended,   // binary8p3, the altfmt = 1 format
   // false: the four-rounder path in this file, with the x2 and the two
   //        assemblers.  true: one P3109Rounder per lane instead, with the
-  //        format on a wire (see P3109Rounder.scala).  Both are meant to
-  //        produce identical results; the option exists so they can be
-  //        compared on real instructions before either is removed.
+  //        format on a wire (see P3109Rounder.scala).  Applies to both units
+  //        that round into 8 bits: the conversion unit (FPConv) and the
+  //        multiply-add unit (FPFMAPipe, via rawUnroundedToP3109Unified).
+  //        Both paths are meant to produce identical results; the option
+  //        exists so they can be compared on real instructions before the
+  //        old one is removed.
   unified: Boolean = false,
   // true: the conversion unit also applies a block scale factor, giving
   //       ConvertFromBlock (5.5.1) on the widening side and ConvertToBlock
@@ -340,6 +343,40 @@ object p3109ToE5M3 {
 // Returns the 8-bit code and the exception flags. The flags are, for now, simply
 // the flags of both rounders combined, as in the conversion unit; making them
 // exactly right for P3109 is a separate, later step.
+// -----------------------------------------------------------------------------
+// The same job, done by the single unified rounder (P3109Rounder.scala).
+// -----------------------------------------------------------------------------
+// Used when P3109Formats.unified is set. Replaces all of rawUnroundedToP3109
+// below -- the doubling, the four rounders and the two assemblers -- with one
+// rounder whose format is a wire.
+//
+// The raw number goes in exactly as the multiply-add core produced it: no
+// resize, no doubling. The rounder's front end takes any exponent and
+// significand width (it re-biases the exponent and ORs the low significand bits
+// into sticky), so each FMA core -- FP64 down to E5M3 -- can hand over its own
+// shape directly.
+//
+// sigMSBitAlwaysZero is false, unlike in the conversion unit: the product of two
+// significands in [1,2) can reach [2,4), so the rounder must keep its
+// doShiftSigDown1 branch.
+//
+// sat is false: RVV has no saturating multiply-add, and P3109 4.5 requires only
+// SatNone. The old path passes false.B for the same reason.
+object rawUnroundedToP3109Unified {
+  def apply(unroundedType: FType, unroundedIn: hardfloat.RawFloat, invalidExc: Bool,
+            altfmt: Bool, roundingMode: Bits, formats: P3109Formats): (UInt, UInt) = {
+    val r = Module(new P3109Rounder(unroundedType.exp, unroundedType.sig + 2, formats,
+                                    sigMSBitAlwaysZero = false))
+    r.io.in             := unroundedIn
+    r.io.altfmt         := altfmt
+    r.io.roundingMode   := roundingMode
+    r.io.sat            := false.B
+    r.io.invalidExc     := invalidExc   // e.g. 0 x Inf, detected by the multiply-add
+    r.io.detectTininess := hardfloat.consts.tininess_afterRounding
+    (r.io.out, r.io.exceptionFlags)
+  }
+}
+
 object rawUnroundedToP3109 {
   def apply(unroundedType: FType, unroundedIn: hardfloat.RawFloat, invalidExc: Bool,
             altfmt: Bool, roundingMode: Bits, formats: P3109Formats): (UInt, UInt) = {

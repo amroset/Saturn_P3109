@@ -95,6 +95,44 @@ class P3109FromBlockWrapper(formats: P3109Formats, name: String) extends RawModu
   io.exceptionFlags := round.io.exceptionFlags
 }
 
+/** The multiply-add unit's use of the rounder, for one core shape.
+  *
+  * Takes the RawFloat fields directly, because the FMA core hands its rounder a
+  * raw number that is not an IEEE bit pattern -- the significand can be in
+  * [2,4), and everything below the core's precision is already OR-ed into a
+  * sticky bit. The testbench drives exactly what the Python model builds with
+  * raw_from_exact.
+  *
+  * Calls rawUnroundedToP3109Unified, the same function FPFMAPipe calls, so the
+  * logic under test is the logic in the design -- nothing is re-created here.
+  */
+class P3109FmaRoundWrapper(core: FType, formats: P3109Formats, name: String) extends RawModule {
+  override def desiredName = name
+  val inSigWidth = core.sig + 2   // what MulAddRecFNPipeUnrounded produces
+  val io = IO(new Bundle {
+    val isNaN          = Input(Bool())
+    val isInf          = Input(Bool())
+    val isZero         = Input(Bool())
+    val sign           = Input(Bool())
+    val sExp           = Input(SInt((core.exp + 2).W))
+    val sig            = Input(UInt((inSigWidth + 1).W))
+    val altfmt         = Input(Bool())
+    val roundingMode   = Input(UInt(3.W))
+    val out            = Output(UInt(8.W))
+    val exceptionFlags = Output(UInt(5.W))
+  })
+  val raw = Wire(new hardfloat.RawFloat(core.exp, inSigWidth))
+  raw.isNaN  := io.isNaN
+  raw.isInf  := io.isInf
+  raw.isZero := io.isZero
+  raw.sign   := io.sign
+  raw.sExp   := io.sExp
+  raw.sig    := io.sig
+  val (out, flags) = rawUnroundedToP3109Unified(core, raw, false.B, io.altfmt, io.roundingMode, formats)
+  io.out            := out
+  io.exceptionFlags := flags
+}
+
 // =============================================================================
 // Development harness, not part of any design.
 // =============================================================================
@@ -133,4 +171,13 @@ object P3109RounderElaborate extends App {
   emit(new P3109ToBlockWrapper(finite,     "P3109ToBlockFin"),   "P3109ToBlockFin.sv")
   emit(new P3109FromBlockWrapper(extended, "P3109FromBlockExt"), "P3109FromBlockExt.sv")
   emit(new P3109FromBlockWrapper(finite,   "P3109FromBlockFin"), "P3109FromBlockFin.sv")
+
+  // The FMA's 8-bit rounder, once per core shape an 8-bit lane can run on
+  // (see ftype_used_for in FPFMAPipe.scala), in both domains.
+  val fmaCores = Seq("FP64" -> FType.D, "FP32" -> FType.S, "FP16" -> FType.H,
+                     "BF16" -> MXFType.BF16, "E5M3" -> MXFType.E5M3)
+  for ((coreName, core) <- fmaCores; (dom, fmts) <- Seq("Ext" -> extended, "Fin" -> finite)) {
+    val n = s"P3109FmaRound${coreName}${dom}"
+    emit(new P3109FmaRoundWrapper(core, fmts, n), s"$n.sv")
+  }
 }

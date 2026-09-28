@@ -356,7 +356,11 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
       if (data_type == MXFType.E5M3){
         // 8-bit result: rounded into the OCP formats, or into P3109 in a P3109 build.
         // (Widened results, below, are BF16 in both builds.)
+        // This runs once per core, and for an 8-bit operation every core is busy
+        // with one lane -- so each gets its own rounder, fed its own raw shape.
         val (out_bits, exc_flags) = p3109 match {
+          case Some(fmt) if fmt.unified =>
+            rawUnroundedToP3109Unified(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, fmt)
           case Some(fmt) => rawUnroundedToP3109(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, fmt)
           case None      => rawUnroundedToFp8(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
         }
