@@ -279,6 +279,13 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.iss.bits.vd_eew    := vd_eew
   io.iss.bits.sew       := inst.vconfig.vtype.vsew
   io.iss.bits.altfmt    := inst.vconfig.vtype.altfmt
+  // No encoding reaches the sweep's extra formats yet, so these bits are zero.
+  // dontTouch stops firtool from propagating that zero into the units: it
+  // would otherwise delete their format-code ports and every extra format with
+  // them, leaving nothing for unit-level synthesis to measure.
+  // (For the pair the field is zero bits wide and there is nothing to keep.)
+  val fmtHiW = io.iss.bits.p3109_fmt_hi.getWidth
+  io.iss.bits.p3109_fmt_hi := (if (fmtHiW == 0) 0.U else dontTouch(WireInit(0.U(fmtHiW.W))))
   io.iss.bits.eidx      := eidx
   io.iss.bits.vl        := inst.vconfig.vl
   io.iss.bits.wvd_eg    := wvd_eg

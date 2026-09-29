@@ -179,6 +179,10 @@ class ExecuteMicroOp(nFUs: Int)(implicit p: Parameters) extends CoreBundle()(p) 
   val vd_eew  = UInt(2.W)
   val sew     = UInt(2.W)
   val altfmt = Bool()
+  // Upper bits of the P3109 format code, above altfmt (see
+  // exu/fp/p3109Sweep.scala). Zero bits wide unless the build lists extra
+  // precisions, and tied to zero by ExecuteSequencer: no instruction sets it.
+  val p3109_fmt_hi = UInt(saturn.exu.P3109Formats.selHiWidth(vParams.p3109).W)
 
   val scalar = UInt(64.W)
 

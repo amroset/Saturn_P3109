@@ -78,8 +78,8 @@ import freechips.rocketchip.tile._
   * means adding one line, not new hardware. The numbers are in the rounder's
   * internal exponent, which is biased by P3109Rounder.IntBias.
   */
-case class P3109FormatInfo(precision: Int, finite: Boolean) {
-  import P3109Rounder.{IntBias, IntSig}
+case class P3109FormatInfo(precision: Int, finite: Boolean, IntSig: Int = P3109Rounder.IntSig) {
+  import P3109Rounder.IntBias
 
   val fracBits = precision - 1                      // bits of fraction stored
   val expBits  = 8 - precision                      // bits of exponent stored
@@ -100,7 +100,7 @@ case class P3109FormatInfo(precision: Int, finite: Boolean) {
   /** Knob 1: how far this format's smallest normal sits from the one the mask
     * decoder was built around.
     */
-  val delta       = P3109Rounder.MaskBottom - minNorm
+  val delta       = P3109Rounder.maskBottom(IntSig) - minNorm
   /** Knob 2: bits of precision this format gives up against the datapath. */
   val precShift   = IntSig - precision
 
@@ -111,7 +111,8 @@ case class P3109FormatInfo(precision: Int, finite: Boolean) {
 
 object P3109Rounder {
   /** Internal significand width, in hardfloat's "outSigWidth" terms. Sized for
-    * the widest format the rounder serves, which is binary8p4.
+    * the widest format the rounder serves: binary8p4 for the pair. A sweep build
+    * with wider formats uses P3109Formats.intSig instead.
     */
   val IntSig = 4
 
@@ -120,15 +121,16 @@ object P3109Rounder {
     */
   val IntBias = 1 << 8
 
-  // The mask decoder is built once, around binary8p4's smallest normal. Every
-  // other format reaches it through `delta` rather than through its own decoder.
-  val MaskBottom = IntBias + 1 - (1 << 3)     // binary8p4: emin = 1 - 8 = -7
-  val MaskTop    = MaskBottom - IntSig - 1    // the same bounds hardfloat uses
+  // The mask decoder is built once, around the widest format's smallest normal
+  // (binary8p4's for the pair: emin = 1 - 8 = -7). Every other format reaches
+  // it through `delta` rather than through its own decoder.
+  def maskBottom(intSig: Int) = IntBias + 1 - (1 << (7 - intSig))
+  def maskTop(intSig: Int)    = maskBottom(intSig) - intSig - 1   // the same bounds hardfloat uses
 
   /** Width of the value handed to the decoder. The exponent is clamped into
-    * [MaskTop, MaskBottom] first, so this only has to hold that range.
+    * [maskTop, maskBottom] first, so this only has to hold that range.
     */
-  val MaskExpWidth = log2Ceil(MaskBottom + 1)
+  def maskExpWidth(intSig: Int) = log2Ceil(maskBottom(intSig) + 1)
 }
 
 
@@ -136,7 +138,7 @@ object P3109Rounder {
   *
   * @param inExpWidth  exponent width of the incoming RawFloat
   * @param inSigWidth  significand width of the incoming RawFloat
-  * @param formats     which domain each of the two formats uses (a build option)
+  * @param formats     the build's formats and their domains (a build option)
   * @param sigMSBitAlwaysZero  true when the caller guarantees the significand is
   *                    below 2, as it is for a value read from a register. The
   *                    FMA's unrounded result can reach 4, so it must pass false.
@@ -147,13 +149,19 @@ class P3109Rounder(
   formats: P3109Formats,
   sigMSBitAlwaysZero: Boolean = false
 ) extends RawModule {
-  import P3109Rounder._
+  import P3109Rounder.IntBias
+  val IntSig       = formats.intSig
+  val MaskBottom   = P3109Rounder.maskBottom(IntSig)
+  val MaskTop      = P3109Rounder.maskTop(IntSig)
+  val MaskExpWidth = P3109Rounder.maskExpWidth(IntSig)
 
   override def desiredName = s"P3109Rounder_ie${inExpWidth}_is${inSigWidth}"
 
   val io = IO(new Bundle {
     val in             = Input(new hardfloat.RawFloat(inExpWidth, inSigWidth))
-    val altfmt         = Input(Bool())      // 0 = binary8p4, 1 = binary8p3
+    // Format code: 0 = binary8p4, 1 = binary8p3 (bit 0 is altfmt), then the
+    // sweep's extra formats. One bit wide for the pair.
+    val fmt            = Input(UInt(formats.selWidth.W))
     val roundingMode   = Input(UInt(3.W))
     val sat            = Input(Bool())      // the .sat instruction variant
     val invalidExc     = Input(Bool())
@@ -163,20 +171,28 @@ class P3109Rounder(
   })
 
   // ---------------------------------------------------------------------------
-  // The format. Everything here is a constant picked at build time; altfmt just
-  // chooses between two of them.
+  // The format. Everything here is a constant picked at build time; the format
+  // code just chooses between them (for the pair, one mux on altfmt).
   // ---------------------------------------------------------------------------
-  val p4 = P3109FormatInfo(4, formats.p4 == P3109Domain.Finite)
-  val p3 = P3109FormatInfo(3, formats.p3 == P3109Domain.Finite)
+  val infos = formats.list.map { case (p, finite) => P3109FormatInfo(p, finite, IntSig) }
+  // Widths are made equal first, so the choice is between like wires.
+  private def pickU(f: P3109FormatInfo => Int) = {
+    val w = infos.map(i => log2Ceil(f(i) + 1)).max max 1
+    P3109Sweep.pick(io.fmt, infos.map(i => f(i).U(w.W)))
+  }
+  private def pickS(f: P3109FormatInfo => Int) = {
+    val w = infos.map(i => f(i).S.getWidth).max
+    P3109Sweep.pick(io.fmt, infos.map(i => f(i).S(w.W)))
+  }
 
-  val fracBits   = Mux(io.altfmt, p3.fracBits.U,   p4.fracBits.U)
-  val precShift  = Mux(io.altfmt, p3.precShift.U,  p4.precShift.U)
-  val delta      = Mux(io.altfmt, p3.delta.S,      p4.delta.S)
-  val minNorm    = Mux(io.altfmt, p3.minNorm.S,    p4.minNorm.S)
-  val minNonzero = Mux(io.altfmt, p3.minNonzero.S, p4.minNonzero.S)
-  val emax       = Mux(io.altfmt, p3.emax.S,       p4.emax.S)
-  val maxFrac    = Mux(io.altfmt, p3.maxFrac.U,    p4.maxFrac.U)
-  val bias       = Mux(io.altfmt, p3.bias.S,       p4.bias.S)
+  val fracBits   = pickU(_.fracBits)
+  val precShift  = pickU(_.precShift)
+  val delta      = pickS(_.delta)
+  val minNorm    = pickS(_.minNorm)
+  val minNonzero = pickS(_.minNonzero)
+  val emax       = pickS(_.emax)
+  val maxFrac    = pickU(_.maxFrac)
+  val bias       = pickS(_.bias)
 
   // ---------------------------------------------------------------------------
   // Rounding mode
@@ -197,7 +213,7 @@ class P3109Rounder(
   val sAdjustedExp = io.in.sExp +& (IntBias - (1 << inExpWidth)).S
 
   // Put the significand into a fixed slot, the same one for either format:
-  //     [top] [hidden] [3 fraction] [guard] [sticky]
+  //     [top] [hidden] [IntSig-1 fraction] [guard] [sticky]
   // Anything that does not fit is OR-ed into the sticky bit, which is all the
   // rounding ever needs to know about it.
   val adjustedSig = if (inSigWidth <= IntSig + 2) {
@@ -265,8 +281,9 @@ class P3109Rounder(
   // Rounding up can overflow the significand, which moves the exponent.
   val sRoundedExp = sAdjustedExp +& (roundedSig >> IntSig).asUInt.zext
 
-  // The fraction, in binary8p4's three-bit field. binary8p3 keeps the top two:
-  // its lowest bit was masked away above, so dropping it loses nothing.
+  // The fraction, in the widest format's field (three bits for the pair). A
+  // narrower format keeps the top bits: the rest were masked away above, so
+  // dropping them loses nothing.
   val frac3 = Mux(doShiftSigDown1, roundedSig(IntSig - 1, 1), roundedSig(IntSig - 2, 0))
   val frac  = frac3 >> precShift
 
@@ -329,11 +346,10 @@ class P3109Rounder(
   val signBit = io.in.sign ## 0.U(7.W)
 
   val nanCode        = "h80".U(8.W)                                   // the only NaN
-  val maxFiniteCodeP = Mux(io.altfmt, (if (p3.finite) "h7F" else "h7E").U,
-                                      (if (p4.finite) "h7F" else "h7E").U)
+  val maxFiniteCodeP = P3109Sweep.pick(io.fmt, infos.map(i => (if (i.finite) "h7F" else "h7E").U(8.W)))
   val maxFiniteCode  = signBit | maxFiniteCodeP
   // The finite domain has no infinity, so anything that would be one is a NaN.
-  val eitherFinite   = Mux(io.altfmt, p3.finite.B, p4.finite.B)
+  val eitherFinite   = P3109Sweep.pick(io.fmt, infos.map(_.finite.B))
   val infCode        = Mux(eitherFinite, nanCode, signBit | "h7F".U)
 
   // A subnormal result: the mask already rounded it onto the subnormal grid, so

@@ -83,9 +83,41 @@ case class P3109Formats(
   //       (5.5.2) on the narrowing side.  See p3109Block.scala.  Needs
   //       `unified`, because the narrowing side scales the raw number just
   //       before the single rounder.
-  block: Boolean = false
+  block: Boolean = false,
+  // Precision sweep (see p3109Sweep.scala). Both default to off, which is the
+  // conformance pair exactly as above.
+  //   general  reads 8-bit operands with the generic reader and sizes the
+  //            FMA's 8-bit core from the format list instead of fixing it at
+  //            E5M3. On its own it keeps the pair, as the sweep's baseline.
+  //   extra    more precisions, selected by format codes 2, 3, ... on the
+  //            units' fmt input. No instruction can reach them yet: the upper
+  //            code bits come from ExecuteMicroOp.p3109_fmt_hi, tied to zero.
+  general: Boolean = false,
+  extra: Seq[(Int, P3109Domain)] = Nil
 ) {
   require(!block || unified, "P3109 block support needs the unified rounder")
+  require(!general || (unified && !block), "the precision sweep needs the unified rounder, without block scaling")
+  require(extra.isEmpty || general, "extra precisions need general = true")
+  require(extra.map(_._1).forall(p => p >= 2 && p <= 7 && p != 3 && p != 4) &&
+          extra.map(_._1).distinct.size == extra.size,
+    "extra precisions must be distinct, in 2..7, and not 3 or 4 (those are always codes 0 and 1)")
+
+  /** Every format, in code order: code 0 is binary8p4, code 1 binary8p3. */
+  def list: Seq[(Int, Boolean)] =
+    Seq((4, p4 == P3109Domain.Finite), (3, p3 == P3109Domain.Finite)) ++
+      extra.map { case (p, d) => (p, d == P3109Domain.Finite) }
+  /** Width of the format code. Bit 0 is altfmt; the rest are new. */
+  def selWidth: Int = log2Ceil(list.size) max 1
+  def selHiWidth: Int = selWidth - 1
+  /** Significand width of the unified rounder's datapath: the widest format. */
+  def intSig: Int = list.map(_._1).max
+  /** The FMA's 8-bit core and the widening reader's target (see p3109Sweep.scala). */
+  def coreType: FType = if (general) P3109Sweep.coreFor(list.map(_._1)) else MXFType.E5M3
+}
+
+object P3109Formats {
+  /** Width of the extra format-code bits a build needs (0 for OCP or the pair). */
+  def selHiWidth(p3109: Option[P3109Formats]): Int = p3109.map(_.selHiWidth).getOrElse(0)
 }
 
 
@@ -364,11 +396,11 @@ object p3109ToE5M3 {
 // SatNone. The old path passes false.B for the same reason.
 object rawUnroundedToP3109Unified {
   def apply(unroundedType: FType, unroundedIn: hardfloat.RawFloat, invalidExc: Bool,
-            altfmt: Bool, roundingMode: Bits, formats: P3109Formats): (UInt, UInt) = {
+            fmt: UInt, roundingMode: Bits, formats: P3109Formats): (UInt, UInt) = {
     val r = Module(new P3109Rounder(unroundedType.exp, unroundedType.sig + 2, formats,
                                     sigMSBitAlwaysZero = false))
     r.io.in             := unroundedIn
-    r.io.altfmt         := altfmt
+    r.io.fmt            := fmt
     r.io.roundingMode   := roundingMode
     r.io.sat            := false.B
     r.io.invalidExc     := invalidExc   // e.g. 0 x Inf, detected by the multiply-add

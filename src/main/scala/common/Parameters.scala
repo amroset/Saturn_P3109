@@ -93,6 +93,17 @@ object VectorParams {
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))
   )
 
+  // Precision sweep (exu/fp/p3109Sweep.scala): the conversion and multiply-add
+  // units carry binary8p4, binary8p3 and the `extra` precisions, all in the
+  // extended domain. Only the pair is reachable from software; the others are
+  // there to be synthesized and measured. With no extras this is the pair on
+  // the sweep's generic reader, the like-for-like baseline.
+  def p3109SweepParams(extra: Int*) = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended,
+                              unified = true, general = true,
+                              extra = extra.map(p => (p, P3109Domain.Extended))))
+  )
+
   def opuParams = genParams.copy(
     vliqEntries = 8, // beef this up since OPU tends to be used with LMUL=1
     vlissqEntries = 6,

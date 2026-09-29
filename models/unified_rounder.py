@@ -131,58 +131,68 @@ def raw_from_fn(bits, exp_width, sig_width):
 # Rounding modes, hardfloat's encoding (== RISC-V frm for 0..4).
 RNE, RTZ, RDN, RUP, RMM, RODD = 0, 1, 2, 3, 4, 6
 
-# Internal datapath, sized for the wider of the two formats.
+# Internal datapath, sized for the widest format the rounder serves. The
+# default is the conformance pair {binary8p4, binary8p3}; the precision sweep
+# passes a wider one (sig_int = the largest precision in its set).
 SIG_INT = 4        # hardfloat 'outSigWidth' terms: binary8p4's precision
 B_INT = 256        # internal exponent bias, 2^8 (BF16's own, so conversions re-bias by 0)
 EXP_SLICE = 10     # bits of exponent fed to the mask decoder
 
-# The mask decoder is built around binary8p4's minNormExp.  binary8p3 reaches it
-# through `delta` instead of a second decoder.
-MIN_NORM_REF = B_INT - 7                       # binary8p4: emin = 1 - 8 = -7
-MASK_TOP = MIN_NORM_REF - SIG_INT - 1          # lowMask bounds, as in hardfloat
-MASK_BOTTOM = MIN_NORM_REF
 
-FMT = {
-    # binary8pP in 8 bits: 1 sign, (8-P) exponent, (P-1) fraction, bias 2^(7-P).
-    # Two knobs carry the format:
-    #   delta       lines this format's minNormExp up with the one the mask
-    #               decoder was built around, so the mask starts widening at the
-    #               right exponent.  delta = MIN_NORM_REF - min_norm.
-    #   prec_shift  how many bits of precision this format gives up relative to
-    #               the internal datapath.  It CANNOT be folded into delta: the
-    #               decoder's thermometer saturates at zero, so a constant added
-    #               to the exponent disappears for every normal number.  It is
-    #               applied as a shift-with-fill instead, which survives the
-    #               clamp.  prec_shift = SIG_INT - P.
-    "p4": dict(
-        frac_bits=3, exp_bits=4, bias=8,
-        min_norm=B_INT - 7,        # emin = -7
-        min_nonzero=B_INT - 10,    # emin - (P-1) = -10, hardfloat's outMinNonzeroExp
-        emax=B_INT + 7,
-        delta=0, prec_shift=0,     # the datapath is built for this format
-    ),
-    "p3": dict(
-        frac_bits=2, exp_bits=5, bias=16,
-        min_norm=B_INT - 15,       # emin = -15
-        min_nonzero=B_INT - 17,
-        emax=B_INT + 15,
-        delta=8, prec_shift=1,     # 249 - 241 = 8, and one fewer fraction bit
-    ),
-}
+def fmt_info(P, sig_int=SIG_INT):
+    """binary8pP in 8 bits: 1 sign, (8-P) exponent, (P-1) fraction, bias 2^(7-P).
+
+    Two knobs carry the format:
+      delta       lines this format's minNormExp up with the one the mask
+                  decoder was built around (the widest format's), so the mask
+                  starts widening at the right exponent.
+      prec_shift  how many bits of precision this format gives up relative to
+                  the internal datapath.  It CANNOT be folded into delta: the
+                  decoder's thermometer saturates at zero, so a constant added
+                  to the exponent disappears for every normal number.  It is
+                  applied as a shift-with-fill instead, which survives the
+                  clamp.  prec_shift = sig_int - P.
+    """
+    assert 2 <= P <= sig_int, f"binary8p{P} does not fit a {sig_int}-bit datapath"
+    bias = 1 << (7 - P)
+    min_norm = B_INT + 1 - bias
+    return dict(
+        frac_bits=P - 1, exp_bits=8 - P, bias=bias,
+        min_norm=min_norm,                          # emin = 1 - bias
+        min_nonzero=min_norm - (P - 1),             # hardfloat's outMinNonzeroExp
+        emax=B_INT + (1 << (8 - P)) - 1 - bias,
+        delta=mask_bounds(sig_int)[1] - min_norm,
+        prec_shift=sig_int - P,
+    )
+
+
+def mask_bounds(sig_int=SIG_INT):
+    """(MASK_TOP, MASK_BOTTOM): the decoder is built around the widest
+    format's minNormExp, the one whose precision is sig_int."""
+    bottom = B_INT + 1 - (1 << (7 - sig_int))
+    return bottom - sig_int - 1, bottom
+
+
+MASK_TOP, MASK_BOTTOM = mask_bounds()
+MIN_NORM_REF = MASK_BOTTOM
+FMT = {"p4": fmt_info(4), "p3": fmt_info(3)}     # the conformance pair, as before
 
 
 def unified_round(raw, fmt, mode, sat=False, finite=False,
                   in_exp_width=8, in_sig_width=8,
                   invalid_exc=False, sig_msb_always_zero=True,
-                  detect_tininess_after=True):
+                  detect_tininess_after=True, sig_int=SIG_INT):
     """Round a hardfloat RawFloat straight to an 8-bit P3109 code.
 
-    fmt     "p4" | "p3"          -- a wire in hardware (altfmt)
+    fmt     "p4" | "p3" | P      -- a wire in hardware (altfmt, or the sweep's fmt)
     finite  domain               -- a build-time choice, as today
     sat     saturating variant   -- the .sat instruction bit
     Returns (code, flags) with flags = (invalid, infinite, overflow, underflow, inexact).
     """
-    f = FMT[fmt]
+    P = {"p4": 4, "p3": 3}.get(fmt, fmt)
+    f = fmt_info(P, sig_int)
+    SIG_INT = sig_int
+    MASK_TOP, MASK_BOTTOM = mask_bounds(sig_int)
 
     near_even, near_max = mode == RNE, mode == RMM
     odd = mode == RODD
@@ -192,7 +202,7 @@ def unified_round(raw, fmt, mode, sat=False, finite=False,
     s_adjusted_exp = raw["sExp"] + (B_INT - (1 << in_exp_width))
 
     # --- align the significand (hardfloat: adjustedSig) --------------------
-    # Result is SIG_INT+3 bits: [top][hidden][3 fraction][guard][sticky].
+    # Result is SIG_INT+3 bits: [top][hidden][SIG_INT-1 fraction][guard][sticky].
     if in_sig_width <= SIG_INT + 2:
         adjusted_sig = raw["sig"] << (SIG_INT - in_sig_width + 2)
     else:
@@ -238,11 +248,11 @@ def unified_round(raw, fmt, mode, sat=False, finite=False,
 
     s_rounded_exp = s_adjusted_exp + (rounded_sig >> SIG_INT)
 
-    # hardfloat's common_fractOut: 3 bits, binary8p4's fraction field.
-    frac3 = ((rounded_sig >> 1) if do_shift_down1 else rounded_sig) & 0b111
-    # binary8p3 keeps 2: its lowest bit was masked away above, so this is exact.
-    assert fmt == "p4" or frac3 & 1 == 0, "binary8p3 kept a bit the mask should have cleared"
-    frac = frac3 >> (3 - f["frac_bits"])
+    # hardfloat's common_fractOut: SIG_INT-1 bits, the widest format's fraction.
+    frac_all = ((rounded_sig >> 1) if do_shift_down1 else rounded_sig) & ((1 << (SIG_INT - 1)) - 1)
+    # A narrower format keeps the top ones: the rest were masked away above.
+    assert frac_all & ((1 << f["prec_shift"]) - 1) == 0, "kept a bit the mask should have cleared"
+    frac = frac_all >> f["prec_shift"]
 
     # --- range checks ------------------------------------------------------
     # CHANGED: hardfloat asks whether the recoded exponent reached the Inf tag.

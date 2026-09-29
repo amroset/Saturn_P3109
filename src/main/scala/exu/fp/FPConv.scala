@@ -42,6 +42,9 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
     val truncating = Input(Bool())
     val rto = Input(Bool())
     val in_altfmt = Input(Bool())
+    // Upper bits of the P3109 format code (p3109Sweep.scala); zero bits wide
+    // unless the build lists extra precisions.
+    val in_fmt_hi = Input(UInt(P3109Formats.selHiWidth(p3109).W))
     val sat = Input(Bool())
     // One Binary8p1uf block scale per 8-bit lane, packed into 64 bits (P3109
     // 5.1). Only read when the build has block support; a scale of 128 is 2^0,
@@ -58,6 +61,13 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
   val p3109Block = p3109.exists(_.block)                      // block scaling on the 8-bit paths
   val p4Finite = p3109.exists(_.p4 == P3109Domain.Finite)     // binary8p4 uses the finite domain
   val p3Finite = p3109.exists(_.p3 == P3109Domain.Finite)     // binary8p3 uses the finite domain
+  val p3109General = p3109.exists(_.general)                  // the precision sweep's generic reader
+  // What an 8-bit input is rewritten as on its way to BF16: E5M3, or in a sweep
+  // build the smallest format that holds every listed precision exactly.
+  val core8 = p3109.map(_.coreType).getOrElse(MXFType.E5M3)
+  // The P3109 format code: altfmt, with the sweep's extra bits above it.
+  val in_fmt = if (P3109Formats.selHiWidth(p3109) == 0) io.in_altfmt.asUInt
+               else Cat(io.in_fmt_hi, io.in_altfmt)
 
   def f2raw(t: FType, in: UInt) = rawFloatFromFN(t.exp, t.sig, in)
 
@@ -91,8 +101,9 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
   val rawBF16 = VecInit(in16.map(u => f2raw(MXFType.BF16, u)))
   // 8-bit inputs (on their way to BF16) are first rewritten as E5M3 numbers.
   // The P3109 build reads its formats with p3109ToE5M3 instead of the OCP reader.
-  val raw8 = VecInit(in8.map(u => f2raw(MXFType.E5M3,
-    if (isP3109) p3109ToE5M3(u, io.in_altfmt, p4Finite, p3Finite) else fp8ToE5M3(u, io.in_altfmt))))
+  val raw8 = VecInit(in8.map(u => f2raw(core8,
+    if (p3109General) p3109ToCore(u, in_fmt, p3109.get)
+    else if (isP3109) p3109ToE5M3(u, io.in_altfmt, p4Finite, p3Finite) else fp8ToE5M3(u, io.in_altfmt))))
 
   val raw32as64 = VecInit(raw32.map(r => raw2raw(FType.D, r)))
   val raw8as64 = VecInit(raw8.map(r => raw2raw(FType.D, r)))
@@ -116,6 +127,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
 
   val s1_out_eew = RegEnable(s0_out_eew, io.valid)
   val s1_altfmt = RegEnable(io.in_altfmt, io.valid)
+  val s1_fmt = if (P3109Formats.selHiWidth(p3109) == 0) s1_altfmt.asUInt else RegEnable(in_fmt, io.valid)
   val s1_signed = RegEnable(io.signed, io.valid)
   val s1_frm = RegEnable(io.frm, io.valid)
   val s1_truncating = RegEnable(io.truncating, io.valid)
@@ -173,7 +185,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
   // The plain 8-bit -> BF16 widening. A block build replaces it with the scaled
   // version further down ("P3109 widening with a block scale").
   val fp82bf16 = if (p3109Block) Seq() else
-    Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(MXFType.E5M3.exp, MXFType.E5M3.sig, MXFType.BF16.exp, MXFType.BF16.sig)))
+    Seq.fill(4)(Module(new hardfloat.RecFNToRecFN(core8.exp, core8.sig, MXFType.BF16.exp, MXFType.BF16.sig)))
   val bf162s = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(MXFType.BF16.exp, MXFType.BF16.sig, FType.S.exp, FType.S.sig)))
   val h2s = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.H.exp, FType.H.sig, FType.S.exp, FType.S.sig)))
   val s2d = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.D.exp, FType.D.sig)))
@@ -188,10 +200,10 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
   val d2s = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.D.exp, FType.D.sig, FType.S.exp, FType.S.sig)))
 
   if (!p3109Block) {
-    fp82bf16(0).io.in := RegEnable(raw2rec(MXFType.E5M3, raw8(0)), io.valid)
-    fp82bf16(1).io.in := RegEnable(raw2rec(MXFType.E5M3, raw8(2)), io.valid)
-    fp82bf16(2).io.in := RegEnable(raw2rec(MXFType.E5M3, raw8(4)), io.valid)
-    fp82bf16(3).io.in := RegEnable(raw2rec(MXFType.E5M3, raw8(6)), io.valid)
+    fp82bf16(0).io.in := RegEnable(raw2rec(core8, raw8(0)), io.valid)
+    fp82bf16(1).io.in := RegEnable(raw2rec(core8, raw8(2)), io.valid)
+    fp82bf16(2).io.in := RegEnable(raw2rec(core8, raw8(4)), io.valid)
+    fp82bf16(3).io.in := RegEnable(raw2rec(core8, raw8(6)), io.valid)
   }
 
   // ===========================================================================
@@ -289,7 +301,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
       val u = Module(new P3109Rounder(
         MXFType.BF16.exp, MXFType.BF16.sig, p3109.get, sigMSBitAlwaysZero = true))
       u.io.in             := r
-      u.io.altfmt         := s1_altfmt
+      u.io.fmt            := s1_fmt
       u.io.roundingMode   := Mux(s1_rto, "b110".U, s1_frm)
       u.io.sat            := s1_sat
       u.io.invalidExc     := sigNaN
@@ -504,6 +516,7 @@ class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(impl
 
     c.io.in_eew := rvs2_eew
     c.io.in_altfmt := Mux(ctrl_bf16 && Mux(ctrl_narrow, vd_eew === 1.U, rvs2_eew === 1.U), 1.U, altfmt) // Special case for vfwcvtbf16.f.f.w and vfncvtbf16.f.f.w
+    c.io.in_fmt_hi := io.pipe(0).bits.p3109_fmt_hi
     c.io.widen := ctrl_widen
     c.io.narrow := ctrl_narrow
     c.io.signed := ctrl_signed
