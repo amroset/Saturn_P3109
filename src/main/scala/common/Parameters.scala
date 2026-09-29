@@ -440,6 +440,12 @@ case class VectorParams(
   require((dLen & (dLen - 1)) == 0, "dLen must be power of 2")
   require(mLen >= 64 && mLen <= 512, "mLen must be >= 64 and <= 512")
   require((mLen & (mLen - 1)) == 0, "mLen must be power of 2")
+  // The outer product unit still reads its 8-bit operands as OCP FP8
+  // (fp8ToE5M3 in OuterProductUnit.scala). Built next to a P3109 vector unit it
+  // would read P3109 bytes as E4M3/E5M2 and give wrong results without any
+  // error, so refuse the combination until the OPU is retargeted.
+  require(!(useOpu && p3109.isDefined),
+    "the outer product unit reads OCP FP8 only; it is not retargeted to P3109 yet")
 }
 
 case object VectorParamsKey extends Field[VectorParams]

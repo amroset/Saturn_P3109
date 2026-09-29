@@ -454,8 +454,16 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
   val nTandemFMA = dLenB / 8
 
   val eidx = Mux(io.pipe(0).bits.acc, 0.U, io.pipe(0).bits.eidx)
+  // 1.0 in each element format, handed to the pipe as the multiplier of an add.
+  // The pipes currently replace it with their own recoded 1.0 whenever the
+  // instruction is an add (see fma.io.b above), so this value never reaches a
+  // core -- but it should still say 1.0. The 8-bit formats disagree on where
+  // 1.0 is: OCP E4M3 puts it at 0x38 and E5M2 at 0x3C, while P3109 puts it at
+  // the midway code point, 0x40, in both formats (P3109 Annex A.5).
+  val one8_bits = if (p3109.isDefined) "h4040404040404040".U
+                  else Mux(altfmt, "h3C3C3C3C3C3C3C3C".U, "h3838383838383838".U)
   val one_bits = Mux1H(Seq(vd_eew === 3.U, vd_eew === 2.U, vd_eew === 1.U, vd_eew === 0.U),
-                       Seq("h3FF0000000000000".U, "h3F8000003F800000".U, Mux(altfmt, "h3F803F803F803F80".U, "h3C003C003C003C00".U), Mux(altfmt, "h3C3C3C3C3C3C3C3C".U, "h3838383838383838".U)))
+                       Seq("h3FF0000000000000".U, "h3F8000003F800000".U, Mux(altfmt, "h3F803F803F803F80".U, "h3C003C003C003C00".U), one8_bits))
   val fmaCmd = ctrl.uint(FPFMACmd)
 
   val vec_rvs1 = io.pipe(0).bits.rvs1_data.asTypeOf(Vec(nTandemFMA, UInt(64.W)))
