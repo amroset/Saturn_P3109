@@ -44,7 +44,9 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
     val in_altfmt = Input(Bool())
     val sat = Input(Bool())
     // One Binary8p1uf block scale per 8-bit lane, packed into 64 bits (P3109
-    // 5.1). Only read when the build has block support; a scale of 128 is 2^0,
+    // 5.1): a scale sits in the same byte as its 8-bit element -- bytes 0, 2,
+    // 4, 6, since both directions carry four 8-bit elements, one per 16-bit
+    // lane. Only read when the build has block support; a scale of 128 is 2^0,
     // so filling this with 0x80 bytes leaves every value unchanged.
     val scale = Input(UInt(64.W))
 
@@ -279,8 +281,10 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(imp
     // A block build divides by the scale here, which is the whole of
     // ConvertToBlock (5.5.2): omegaBlockProject, then the rounder below does
     // the projecting. See p3109Block.scala.
+    // BF16 lane i's result lands in byte 2i, so its scale is scale8(2i): a
+    // scale sits in the same byte as its 8-bit element, as on the widening side.
     val held = rawBF16.zipWithIndex.map { case (r, i) =>
-      RegEnable(if (p3109Block) p3109RemoveScale(r, scale8(i)) else r, io.valid) }
+      RegEnable(if (p3109Block) p3109RemoveScale(r, scale8(2 * i)) else r, io.valid) }
     // "Invalid" is raised by a signalling NaN in the *operand*, so this is
     // taken before the scale is removed -- afterwards the sign and significand
     // of a NaN carry no meaning.
@@ -517,7 +521,10 @@ class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats] = None)(impl
     // 128 is the Binary8p1uf encoding of 1.0, which leaves values untouched --
     // a block build therefore behaves exactly like a non-block one until an
     // encoding is added to deliver real scales here.
-    c.io.scale := Fill(8, 128.U(8.W))
+    // dontTouch stops firtool from propagating the constant into FPConvBlock,
+    // which would delete its scale port and fold the block hardware down to
+    // the 2^0 case -- leaving nothing general to test or synthesize.
+    c.io.scale := (if (p3109.exists(_.block)) dontTouch(WireInit(Fill(8, 128.U(8.W)))) else Fill(8, 128.U(8.W)))
   }
 
   val out = Wire(UInt(dLen.W))
