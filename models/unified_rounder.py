@@ -274,7 +274,9 @@ def unified_round(raw, fmt, mode, sat=False, finite=False,
     underflow = common_case and common_underflow
     inexact = overflow or (common_case and common_inexact)
 
-    overflow_round_mag_up = near_even or near_max or round_mag_up
+    # CHANGED from hardfloat: round-to-odd goes out on overflow too, as P3109
+    # 4.7.5 requires (see overflowGoesOut in P3109Rounder.scala).
+    overflow_round_mag_up = near_even or near_max or round_mag_up or odd
     peg_min_nonzero = common_case and common_total_underflow and (round_mag_up or odd)
     peg_max_finite = overflow and not overflow_round_mag_up
 

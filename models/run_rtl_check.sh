@@ -13,7 +13,7 @@ cd "$work"
 rc=0
 for dom in ext fin; do
     top=$([ "$dom" = ext ] && echo P3109ConvExt || echo P3109ConvFin)
-    echo "### $top  (${dom}ended domain)"
+    echo "### $top  ($([ "$dom" = ext ] && echo extended || echo finite) domain)"
     rm -rf "obj_$dom"
     verilator --cc "$top.sv" --exe "$here/tb_p3109_rounder.cpp" \
         --top-module "$top" --Mdir "obj_$dom" -o "sim_$dom" \

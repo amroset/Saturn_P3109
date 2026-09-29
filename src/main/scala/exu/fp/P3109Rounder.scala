@@ -23,13 +23,15 @@ import freechips.rocketchip.tile._
 // How it relates to hardfloat
 // ---------------------------
 // The rounding itself is hardfloat's RoundAnyRawFNToRecFN, transcribed. Only
-// two things are different, and both are marked CHANGED below:
+// three things are different, and all are marked CHANGED below:
 //
 //   1. the round mask takes two extra inputs, which is how the format is
 //      selected at run time (see "the two knobs" below);
 //   2. the overflow test compares against the format's real largest finite
 //      number instead of asking whether the exponent reached IEEE's infinity
-//      encoding, which P3109 does not have.
+//      encoding, which P3109 does not have;
+//   3. round-to-odd overflows to Inf (or NaN in the finite domain) rather than
+//      stopping at the largest finite, as P3109 4.7.5 requires.
 //
 // The tail of the module -- turning the rounded number into an 8-bit code -- is
 // new. hardfloat ends by producing a "recoded" number, which has no subnormals
@@ -306,7 +308,16 @@ class P3109Rounder(
 
   // Which way an out-of-range value goes: the nearest and outward modes reach
   // for the overflow code point, the inward ones stop at the largest finite.
-  val overflowGoesOut = nearEven || nearMax || roundMagUp
+  //
+  // CHANGED -- round-to-odd goes out too. hardfloat stops it at the largest
+  // finite, which is harmless in IEEE formats because their largest finite has
+  // an all-ones, odd, significand. P3109 4.7.5 lets only TowardZero,
+  // TowardNegative and TowardPositive stop there under SatNone; every other
+  // mode gives Inf (extended domain) or NaN (finite domain). In the extended
+  // domain it also matters for round-to-odd's own guarantee: the largest finite
+  // there is 0x7E, an even code, so stopping at it would return an inexact even
+  // result.
+  val overflowGoesOut = nearEven || nearMax || roundMagUp || toOdd
   val pegMinNonzero   = commonCase && commonTotalUnderflow && (roundMagUp || toOdd)
 
   // ---------------------------------------------------------------------------

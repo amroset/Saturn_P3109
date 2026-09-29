@@ -1,6 +1,6 @@
 // Standalone Verilator testbench for the unified P3109 rounder.
 //
-// Sweeps every BF16 pattern through every rounding mode, both formats and both
+// Sweeps every BF16 pattern through every rounding mode (round-to-odd included), both formats and both
 // saturation settings, and compares the hardware against expected_<domain>.bin,
 // which models/dump_expected.py writes from the Python model.
 //
@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 
     FILE* f = fopen(argv[1], "rb");
     if (!f) { perror("expected"); return 2; }
-    std::vector<unsigned char> expected(1310720);
+    std::vector<unsigned char> expected(1572864);   // 65536 x 6 modes x 2 x 2
     if (fread(expected.data(), 1, expected.size(), f) != expected.size()) {
         fprintf(stderr, "short expected file\n"); return 2;
     }
@@ -27,16 +27,18 @@ int main(int argc, char** argv) {
     VTOP* dut = new VTOP;
 
     size_t i = 0, bad = 0;
-    const char* modes[] = {"rne", "rtz", "rdn", "rup", "rmm"};
+    // The five frm modes plus round-to-odd (6), which vfncvt.rod uses.
+    const int   mode_codes[] = {0, 1, 2, 3, 4, 6};
+    const char* modes[]      = {"rne", "rtz", "rdn", "rup", "rmm", "rod"};
 
     for (int sat = 0; sat < 2; sat++) {
         for (int altfmt = 0; altfmt < 2; altfmt++) {
-            for (int frm = 0; frm < 5; frm++) {
+            for (int frm = 0; frm < 6; frm++) {
                 size_t bad_here = 0;
                 for (int bits = 0; bits < 65536; bits++, i++) {
                     dut->io_in = bits;
                     dut->io_altfmt = altfmt;
-                    dut->io_roundingMode = frm;
+                    dut->io_roundingMode = mode_codes[frm];
                     dut->io_sat = sat;
                     dut->eval();
                     unsigned got = dut->io_out & 0xFF;
