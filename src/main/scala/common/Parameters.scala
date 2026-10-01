@@ -61,36 +61,27 @@ object VectorParams {
     useMxConversion = true,
   )
 
-  // Same as mxParams, but every 8-bit float in the vector unit is IEEE P3109
-  // (binary8p4 / binary8p3) instead of OCP FP8 (E4M3 / E5M2): both the conversion
-  // instructions and the multiply-add unit's 8-bit operands and results.
-  // Both formats in the extended domain (with infinities).
+  // p3109Params:
+  // Same as mxParams, with IEEE P3109 binary8p4/binary8p3 in place of OCP FP8
   def p3109Params = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended))
+    p3109 = Some(P3109Formats())
   )
-  // The same as p3109Params, but the conversion unit uses the single
-  // runtime-selectable rounder (P3109Rounder.scala) instead of four fixed ones.
-  def p3109UnifiedParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended, unified = true))
-  )
-  def p3109UnifiedFiniteParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, unified = true))
-  )
-  // The unified build plus block scaling in the conversion unit: ConvertFromBlock
-  // on the widening side, ConvertToBlock on the narrowing side (see
-  // p3109Block.scala). No instruction delivers a scale yet, so every lane is
-  // given 2^0 and this behaves exactly like p3109UnifiedParams.
-  def p3109BlockParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended,
-                              unified = true, block = true))
-  )
-  def p3109BlockFiniteParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite,
-                              unified = true, block = true))
-  )
-  // The same, with both formats in the finite domain (no infinities).
+
+  // p3109FiniteParams:
+  // Same as p3109Params, both formats in the finite domain (no infinities)
   def p3109FiniteParams = mxParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))
+  )
+
+  // p3109BlockParams:
+  // Same as p3109Params, with block scale factors in the conversion unit.
+  // Every lane gets scale 2^0 until the ISA can deliver one.
+  def p3109BlockParams = mxParams.copy(
+    p3109 = Some(P3109Formats(block = true))
+  )
+
+  def p3109BlockFiniteParams = mxParams.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, block = true))
   )
 
   def opuParams = genParams.copy(

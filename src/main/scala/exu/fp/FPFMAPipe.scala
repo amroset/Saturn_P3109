@@ -188,7 +188,7 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
   // 8-bit operands are first rewritten as E5M3 numbers. A P3109 build reads its
   // formats with p3109ToE5M3 instead of the OCP reader (see p3109Fp8.scala).
   def read8(f: UInt) = p3109 match {
-    case Some(fmt) => p3109ToE5M3(f, io.altfmt, fmt.p4 == P3109Domain.Finite, fmt.p3 == P3109Domain.Finite)
+    case Some(fmt) => p3109ToE5M3(f, io.altfmt, fmt.p4Finite, fmt.p3Finite)
     case None      => fp8ToE5M3(f, io.altfmt)
   }
   val f8a = io.a.asTypeOf(Vec(8, UInt(8.W))).map(f => MXFType.E5M3.recode(read8(f)))
@@ -359,8 +359,6 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
         // This runs once per core, and for an 8-bit operation every core is busy
         // with one lane -- so each gets its own rounder, fed its own raw shape.
         val (out_bits, exc_flags) = p3109 match {
-          case Some(fmt) if fmt.unified =>
-            rawUnroundedToP3109Unified(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, fmt)
           case Some(fmt) => rawUnroundedToP3109(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, fmt)
           case None      => rawUnroundedToFp8(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
         }

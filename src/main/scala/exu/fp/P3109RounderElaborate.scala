@@ -104,7 +104,7 @@ class P3109FromBlockWrapper(formats: P3109Formats, name: String) extends RawModu
   * sticky bit. The testbench drives exactly what the Python model builds with
   * raw_from_exact.
   *
-  * Calls rawUnroundedToP3109Unified, the same function FPFMAPipe calls, so the
+  * Calls rawUnroundedToP3109, the same function FPFMAPipe calls, so the
   * logic under test is the logic in the design -- nothing is re-created here.
   */
 class P3109FmaRoundWrapper(core: FType, formats: P3109Formats, name: String) extends RawModule {
@@ -129,7 +129,7 @@ class P3109FmaRoundWrapper(core: FType, formats: P3109Formats, name: String) ext
   raw.sign   := io.sign
   raw.sExp   := io.sExp
   raw.sig    := io.sig
-  val (out, flags) = rawUnroundedToP3109Unified(core, raw, false.B, io.altfmt, io.roundingMode, formats)
+  val (out, flags) = rawUnroundedToP3109(core, raw, false.B, io.altfmt, io.roundingMode, formats)
   io.out            := out
   io.exceptionFlags := flags
 }
