@@ -20,10 +20,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "common-data-gen"))
 
 from gfloat import decode_float  # noqa: E402
-from gfloat_ref import BF16, FP8_STANDARDS, convert  # noqa: E402
+from gfloat_ref import BF16, FP8, convert  # noqa: E402
 
-E4M3 = FP8_STANDARDS["ocp"]["altfmt0"]
-E5M2 = FP8_STANDARDS["ocp"]["altfmt1"]
+E4M3 = FP8["altfmt0"]
+E5M2 = FP8["altfmt1"]
 
 # name, src format, src bytes, dst format, dst bytes, gfloat sat flag
 CASES = [

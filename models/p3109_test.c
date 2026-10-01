@@ -1,23 +1,15 @@
-// =============================================================================
-// Exhaustive check of p3109.h against a direct transcription of the standard
-// =============================================================================
+// Exhaustive check of p3109.h against a direct transcription of the standard.
 //
 // p3109.h computes everything with bit tricks on code points. This file does
 // the same work the slow, obvious way: decode each code point to a real value
 // exactly as 4.7.2 says, then apply the operation exactly as its behavior table
 // in 4.11 / 4.12 / 4.13 says, then compare.
 //
-// Because the formats are 8 bits wide (or 4), "exhaustive" is cheap: 256 cases
-// for a one-operand operation, 65536 for a two-operand one. That is not
-// sampling -- it is every input the operation can ever see, which is the
-// attestation 4.6 asks for ("any appropriate proof method, including direct
-// computation").
+// The formats are 8 bits wide (or 4), so every input is checked: 256 cases for
+// a one-operand operation, 65536 for a two-operand one.
 //
-// Build and run on the host:
-//   cc -O2 -Wall -o p3109_test p3109_test.c && ./p3109_test
-//
-// Host-side only. It must NOT live in benchmarks/common/, whose *.c files are
-// compiled into every bare-metal benchmark (see COMMON_SRCS in the Makefile).
+// Host-side only (benchmarks/common/*.c is compiled into every benchmark):
+//   cc -O2 -Wall -o /tmp/p3109_test p3109_test.c && /tmp/p3109_test
 
 #include <stdio.h>
 #include <stdlib.h>

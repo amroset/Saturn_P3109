@@ -1,14 +1,16 @@
-// Standalone Verilator testbench for the unified P3109 rounder.
+// Verilator testbench for P3109Rounder as the conversion unit uses it.
 //
-// Sweeps every BF16 pattern through every rounding mode (round-to-odd included), both formats and both
-// saturation settings, and compares the code and the exception flags against
+// Sweeps every BF16 pattern through every rounding mode (round-to-odd
+// included), both formats and both saturation settings, and compares the code
+// and the exception flags against
 // expected_<domain>.bin, which models/dump_expected.py writes from gfloat,
 // rto_ref and flags_ref.
 //
-// Built by run_rtl_check.sh, which verilates one wrapper at a time.
+// Built by run_rounder_check.sh, once per domain.
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <vector>
 #include "verilated.h"
 #include VTOP_HEADER
@@ -25,8 +27,8 @@ int main(int argc, char** argv) {
     }
     fclose(f);
 
-    Verilated::commandArgs(argc, argv);
-    VTOP* dut = new VTOP;
+    auto ctx = std::make_unique<VerilatedContext>();
+    auto dut = std::make_unique<VTOP>(ctx.get());
 
     size_t i = 0, bad = 0;
     // The five frm modes plus round-to-odd (6), which vfncvt.rod uses.
@@ -35,12 +37,12 @@ int main(int argc, char** argv) {
 
     for (int sat = 0; sat < 2; sat++) {
         for (int altfmt = 0; altfmt < 2; altfmt++) {
-            for (int frm = 0; frm < 6; frm++) {
+            for (int m = 0; m < 6; m++) {
                 size_t bad_here = 0;
                 for (int bits = 0; bits < 65536; bits++, i++) {
                     dut->io_in = bits;
                     dut->io_altfmt = altfmt;
-                    dut->io_roundingMode = mode_codes[frm];
+                    dut->io_roundingMode = mode_codes[m];
                     dut->io_sat = sat;
                     dut->eval();
                     unsigned got = dut->io_out & 0xFF;
@@ -50,20 +52,19 @@ int main(int argc, char** argv) {
                         if (bad_here == 0)
                             printf("   MISMATCH %s sat=%d %s: bf16 0x%04X got 0x%02X/%02X "
                                    "want 0x%02X/%02X (code/flags)\n",
-                                   altfmt ? "binary8p3" : "binary8p4", sat, modes[frm],
+                                   altfmt ? "binary8p3" : "binary8p4", sat, modes[m],
                                    bits, got, got_flags, want, want_flags);
                         bad_here++;
                     }
                 }
                 printf("   %-10s sat=%d %s: %5zu/65536\n",
-                       altfmt ? "binary8p3" : "binary8p4", sat, modes[frm],
+                       altfmt ? "binary8p3" : "binary8p4", sat, modes[m],
                        65536 - bad_here);
                 bad += bad_here;
             }
         }
     }
 
-    delete dut;
-    printf("\nTOTAL MISMATCHES: %zu  (of %zu cases)\n", bad, i);
+    printf("   TOTAL MISMATCHES: %zu  (of %zu cases)\n", bad, i);
     return bad ? 1 : 0;
 }

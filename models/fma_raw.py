@@ -1,16 +1,12 @@
 """How an FMA core hands its result to the 8-bit rounder.
 
-Shared by validate_unified_fma.py (which checks the Python rounder model) and
+Shared by validate_rounder_fma.py (which checks the Python rounder model) and
 dump_fma_expected.py (which writes vectors for the RTL), so both build the raw
 number the same way.
 """
-import os
-import sys
 from fractions import Fraction
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "benchmarks", "common-data-gen"))
-from fma_ref import _floor_log2  # noqa: E402
+from flags_ref import floor_log2
 
 # Core type -> (exponent width, significand width).  The rounder is handed a
 # RawFloat(exp, sig+2): the multiply-add result before any rounding.
@@ -40,7 +36,7 @@ def raw_from_exact(r, exp_width, sig_width, unnormalized=False):
     if mag == 0:
         return {**base, "isZero": True, "sign": sign}
 
-    e = _floor_log2(mag) - (1 if unnormalized else 0)
+    e = floor_log2(mag) - (1 if unnormalized else 0)
     scaled = (mag / Fraction(2) ** e) * (1 << (sig_width - 1))   # in [1,2) or [2,4)
     sig = scaled.numerator // scaled.denominator
     if sig * scaled.denominator != scaled.numerator:

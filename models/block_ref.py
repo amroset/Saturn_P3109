@@ -17,18 +17,9 @@ The scale format is Binary8p1uf (4.5, Fs): 8 bits, unsigned, finite, precision
 1, so bias = 2^(K-P) = 128 and the code point is the biased exponent itself.
 """
 import math
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "benchmarks", "common-data-gen"))
 
 from gfloat import RoundMode, decode_float, encode_float, round_float
-from gfloat.formats import format_info_bfloat16, format_info_p3109
-from gfloat.types import Domain, Signedness
-from gfloat_ref import canonical_nan
-
-BF16 = format_info_bfloat16
+from gfloat_ref import BF16, canonical_nan, p3109_format
 
 SCALE_BIAS = 128
 SCALE_NAN = 255
@@ -43,15 +34,10 @@ def scale_value(s):
     return 2.0 ** (s - SCALE_BIAS)
 
 
-def p3109_fi(precision, finite):
-    dom = Domain.Finite if finite else Domain.Extended
-    return format_info_p3109(8, precision, Signedness.Signed, dom)
-
-
 def convert_from_block(code, scale, precision, finite,
                        rnd=RoundMode.TiesToEven):
     """ConvertFromBlock: an 8-bit element and its scale, widened to BF16."""
-    src = p3109_fi(precision, finite)
+    src = p3109_format(precision, finite)
     X = decode_float(src, code).fval
     S = scale_value(scale)
 
@@ -74,7 +60,7 @@ def convert_from_block(code, scale, precision, finite,
 def convert_to_block(bits, scale, precision, finite,
                      rnd=RoundMode.TiesToEven, sat=False):
     """ConvertToBlock: a BF16 value and a scale, narrowed to an 8-bit element."""
-    dst = p3109_fi(precision, finite)
+    dst = p3109_format(precision, finite)
     X = decode_float(BF16, bits).fval
     S = scale_value(scale)
 

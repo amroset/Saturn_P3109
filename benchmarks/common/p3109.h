@@ -1,43 +1,13 @@
-// =============================================================================
-// IEEE P3109 scalar operations, in software
-// =============================================================================
+// See LICENSE for license details.
+
+// The IEEE P3109 operations that need no floating-point arithmetic, on code
+// points, for software running beside a P3109 vector unit: format-level
+// operations, predicates and the classifier, Negate/Abs, comparisons,
+// minimum/maximum and NextGreaterThan/NextLessThan (P3109 v4.0.3, 4.10-4.16).
 //
-// What this file is for
-// ---------------------
-// The vector unit implements the *arithmetic* on P3109 8-bit numbers:
-// conversion (FPConv) and multiply-add (FPFMAPipe). It does not implement the
-// rest of what P3109 4.5 asks a conforming implementation to provide:
-//
-//   - the twelve format-level operations (BitwidthOf, MaxFiniteOf, ...)
-//   - the ten predicates (IsZero, IsNaN, IsNormal, ...) and the classifier
-//   - Negate and Abs
-//   - the five comparisons
-//   - the ten minimum/maximum variants
-//   - NextGreaterThan / NextLessThan
-//
-// None of those need hardware: they are bit tests and integer comparisons on
-// the 8-bit code point. This header supplies them, so that "the implementation"
-// -- hardware plus this library -- covers the required set.
-//
-// Everything here works on *code points*: the plain integer value of the K bits,
-// 0 .. 2^K - 1. No floating-point arithmetic is used, so this is safe to call
-// from a bare-metal benchmark.
-//
-// Observations
-// -----------------------------
-// 1. "The low bits count upward."
-//    In a signed P3109 format the top bit is the sign and the remaining K-1
-//    bits are a plain increasing sequence: 0, then the subnormals, then the
-//    normals, then (in the extended domain) infinity. So comparing magnitudes
-//    is comparing integers. See the value tables in Annex B of the standard.
-//
-// 2. "There is exactly one zero and exactly one NaN."
-//    Zero is code point 0. NaN sits where IEEE-754 would put negative zero,
-//    that is 2^(K-1) for a signed format. So there is no -0 to special-case,
-//    and a single equality test finds NaN.
-//
-// Reference: IEEE P3109 Interim Report v4.0.3, sections 3.1, 4.7.2, 4.11-4.14
-// and 4.16.
+// In a signed format the low K-1 bits order the magnitudes, there is one zero
+// (code 0) and one NaN (code 2^(K-1)), so most of this is integer compares.
+// Exhaustively tested by models/p3109_test.c.
 
 #ifndef __P3109_H
 #define __P3109_H
@@ -73,8 +43,7 @@ typedef uint32_t p3109_t;  // a code point, 0 .. 2^K - 1
 // -----------------------------------------------------------------------------
 // 4.14  Format-level operations
 // -----------------------------------------------------------------------------
-// These act on the format, not on a value. All are compile-time constants in
-// practice; they mirror the P3109FormatInfo case class in the Chisel source.
+// These act on the format, not on a value.
 
 typedef enum { P3109_SIGNED, P3109_UNSIGNED } p3109_signedness_t;
 typedef enum { P3109_FINITE, P3109_EXTENDED } p3109_domain_t;
@@ -99,8 +68,7 @@ static inline int p3109_trailing_significand_bitwidth_of(p3109_fmt_t f) {
   return f.p - 1;
 }
 
-// 3.1: B = 2^(K-P-1) signed, 2^(K-P) unsigned. This is one more than IEEE-754
-// would use for the same shape, which is why the same bits mean half as much.
+// 3.1: B = 2^(K-P-1) signed, 2^(K-P) unsigned, one more than IEEE-754 would use.
 static inline int p3109_exponent_bias_of(p3109_fmt_t f) {
   return 1 << (f.is_signed ? (f.k - f.p - 1) : (f.k - f.p));
 }
@@ -200,7 +168,7 @@ static inline p3109_class_t p3109_class(p3109_fmt_t f, p3109_t x) {
 }
 
 // -----------------------------------------------------------------------------
-// 4.14  Values that depend on the format (returned as code points)
+// 4.14  Format-level values, returned as code points
 // -----------------------------------------------------------------------------
 
 static inline p3109_t p3109_max_finite_of(p3109_fmt_t f) {
@@ -234,15 +202,11 @@ static inline p3109_t p3109_min_normal_of(p3109_fmt_t f) {
 // -----------------------------------------------------------------------------
 // 4.10.1  Negate, Abs
 // -----------------------------------------------------------------------------
-// Flip or clear the sign bit -- but NaN has no sign, so leave it alone. (There
-// is no -0 to worry about: negating zero gives the code point of NaN if done
-// naively, which is why zero is checked too.)
+// Flip or clear the sign bit, except for NaN and zero: flipping zero's sign bit
+// would give the NaN code point.
 //
-// In an *unsigned* format the negation of a nonzero value is not representable.
-// 4.10.1 defines Negate as ωProject of -X, and for a finite unsigned format
-// 4.7.5 sends an out-of-range value to NaN, so that is what is returned. (This
-// case never arises for the required set -- F4 and F8 are all signed -- but the
-// scale format Binary8p1uf is unsigned, so it is worth getting right.)
+// In an unsigned format (such as the scale format, Binary8p1uf) the negation of
+// a nonzero value is out of range, which 4.10.1 and 4.7.5 make NaN.
 
 static inline p3109_t p3109_negate(p3109_fmt_t f, p3109_t x) {
   if (p3109_is_nan(f, x) || p3109_is_zero(f, x)) return x;
@@ -269,33 +233,29 @@ static inline int32_t p3109_order_key(p3109_fmt_t f, p3109_t x) {
 }
 
 // 4.12: every comparison involving NaN is false, including CompareEqual.
-#define P3109_CMP_NAN_GUARD(f, x, y) \
-  if (p3109_is_nan(f, x) || p3109_is_nan(f, y)) return 0;
+static inline int p3109_unordered(p3109_fmt_t f, p3109_t x, p3109_t y) {
+  return p3109_is_nan(f, x) || p3109_is_nan(f, y);
+}
 
 static inline int p3109_compare_less(p3109_fmt_t f, p3109_t x, p3109_t y) {
-  P3109_CMP_NAN_GUARD(f, x, y)
-  return p3109_order_key(f, x) < p3109_order_key(f, y);
+  return !p3109_unordered(f, x, y) && p3109_order_key(f, x) < p3109_order_key(f, y);
 }
 
 static inline int p3109_compare_less_equal(p3109_fmt_t f, p3109_t x, p3109_t y) {
-  P3109_CMP_NAN_GUARD(f, x, y)
-  return p3109_order_key(f, x) <= p3109_order_key(f, y);
+  return !p3109_unordered(f, x, y) && p3109_order_key(f, x) <= p3109_order_key(f, y);
 }
 
 static inline int p3109_compare_equal(p3109_fmt_t f, p3109_t x, p3109_t y) {
-  P3109_CMP_NAN_GUARD(f, x, y)
-  return p3109_order_key(f, x) == p3109_order_key(f, y);
+  return !p3109_unordered(f, x, y) && p3109_order_key(f, x) == p3109_order_key(f, y);
 }
 
 static inline int p3109_compare_greater(p3109_fmt_t f, p3109_t x, p3109_t y) {
-  P3109_CMP_NAN_GUARD(f, x, y)
-  return p3109_order_key(f, x) > p3109_order_key(f, y);
+  return !p3109_unordered(f, x, y) && p3109_order_key(f, x) > p3109_order_key(f, y);
 }
 
 static inline int p3109_compare_greater_equal(p3109_fmt_t f, p3109_t x,
                                               p3109_t y) {
-  P3109_CMP_NAN_GUARD(f, x, y)
-  return p3109_order_key(f, x) >= p3109_order_key(f, y);
+  return !p3109_unordered(f, x, y) && p3109_order_key(f, x) >= p3109_order_key(f, y);
 }
 
 // 4.12.1  Total order: NaN sorts below everything, and the order is total.
@@ -401,8 +361,7 @@ static inline p3109_t p3109_maximum_finite(p3109_fmt_t f, p3109_t x, p3109_t y) 
 // four edges: NaN, infinity, the largest finite value, and the crossing from
 // the smallest negative to zero.
 //
-// Unlike IEEE-754's nextUp, stepping past infinity gives NaN rather than
-// staying put, which is why the standard uses different names.
+// Unlike IEEE-754's nextUp, stepping past infinity gives NaN.
 
 static inline p3109_t p3109_next_greater_than(p3109_fmt_t f, p3109_t x) {
   p3109_t nan = p3109_nan_of(f);

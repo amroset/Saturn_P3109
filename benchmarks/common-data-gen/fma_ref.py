@@ -19,10 +19,10 @@ result of an operation can need more than a float's 53 bits.  So:
      position, so gfloat rounds the stand-in to exactly the answer the exact result
      would get.  The stand-in is always representable as a float.
 
-Special cases follow IEEE 754, and P3109 v4.0.3 sections 4.10.3-4.10.4 agree with
-it: NaN in gives NaN out; +Inf + -Inf, Inf - Inf and 0 x Inf give NaN; otherwise an
-infinity wins.  An exact zero sum of opposite-signed operands is +0, or -0 when
-rounding toward negative (IEEE).  P3109 has no -0; gfloat encodes it as zero.
+Special cases follow IEEE 754: NaN in gives NaN out; +Inf + -Inf, Inf - Inf and
+0 x Inf give NaN; otherwise an infinity wins.  An exact zero sum of
+opposite-signed operands is +0, or -0 when rounding toward negative (P3109,
+which has no -0, encodes both as zero).
 
 Validated against the Spike-generated vec-mx-binary golden data by
 vec-mx-binary/gen_data/validate_fma_ref.py.

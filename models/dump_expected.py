@@ -21,26 +21,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "benchmarks", "common-data-gen"))
 sys.path.insert(0, HERE)
 
-from gfloat.formats import format_info_p3109          # noqa: E402
-from gfloat.types import Domain, Signedness           # noqa: E402
-from gfloat_ref import BF16, FRM, convert             # noqa: E402
-from flags_ref import p3109_flags, RODD               # noqa: E402
+from gfloat_ref import BF16, FRM, convert, p3109_format             # noqa: E402
+from flags_ref import flags, pack, bf16_exact, bf16_is_snan, FRM_MODES, RODD  # noqa: E402
 from rto_ref import convert_bf16_odd                  # noqa: E402
-from validate_flags import bf16_exact, is_snan        # noqa: E402
 
-MODES = (0, 1, 2, 3, 4, RODD)
+MODES = FRM_MODES + (RODD,)
 RND = {frm: rnd for frm, rnd in FRM.values()}
 
 
 def job(args):
     finite, sat, P, mode = args
-    fi = format_info_p3109(8, P, Signedness.Signed, Domain.Finite if finite else Domain.Extended)
+    fi = p3109_format(P, finite)
     out = bytearray()
     for bits in range(1 << 16):
         code = (convert_bf16_odd(bits, fi, sat) if mode == RODD
                 else convert(BF16, fi, bits, RND[mode], sat))
-        flags = p3109_flags(bf16_exact(bits), fi, mode, invalid=is_snan(bits))
-        out += bytes((code, sum(on << (4 - i) for i, on in enumerate(flags))))
+        exc = flags(bf16_exact(bits), fi, mode, invalid=bf16_is_snan(bits))
+        out += bytes((code, pack(exc)))
     return bytes(out)
 
 

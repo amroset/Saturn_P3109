@@ -5,12 +5,13 @@
 // P3109FmaRound<core><dom> wrapper, and compares the code and the exception
 // flags against the exact references.
 //
-// Built once per core and domain by run_fma_check.sh. SEXP_W is the width of
+// Built once per core and domain by run_rounder_check.sh. SEXP_W is the width of
 // the core's signed exponent field (expWidth + 2): a negative exponent must be
 // masked to exactly that many bits before it is driven onto the port.
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <cstring>
 #include <vector>
 #include "verilated.h"
@@ -42,8 +43,8 @@ int main(int argc, char** argv) {
     if (fread(recs.data(), sizeof(Rec), n, f) != n) { fprintf(stderr, "short read\n"); return 2; }
     fclose(f);
 
-    Verilated::commandArgs(argc, argv);
-    VTOP* dut = new VTOP;
+    auto ctx = std::make_unique<VerilatedContext>();
+    auto dut = std::make_unique<VTOP>(ctx.get());
     const uint32_t sexp_mask = (SEXP_W >= 32) ? 0xFFFFFFFFu : ((1u << SEXP_W) - 1);
 
     size_t bad = 0, bad_shown = 0;
@@ -76,7 +77,6 @@ int main(int argc, char** argv) {
         printf("   %-10s %9zu/%zu ok\n", a ? "binary8p3" : "binary8p4",
                per_fmt[a] - bad_fmt[a], per_fmt[a]);
 
-    delete dut;
     printf("   TOTAL MISMATCHES: %zu  (of %zu cases)\n", bad, n);
     return bad ? 1 : 0;
 }

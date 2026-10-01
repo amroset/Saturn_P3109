@@ -161,7 +161,7 @@ class MulAddRecFNPipeUnrounded(latency: Int, expWidth: Int, sigWidth: Int) exten
   io.invalidExc     := Pipe(valid_stage0, mulAddRecFNToRaw_postMul.io.invalidExc, round_regs).bits
 }
 
-class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats] = None)(implicit p: Parameters) extends FMAPipe()(p) {
+class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats])(implicit p: Parameters) extends FMAPipe()(p) {
   require (depth >= 4)
 
   val out_eew_pipe = Pipe(io.valid, io.out_eew, depth-1)
@@ -185,11 +185,9 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
   val bf16a = io.a.asTypeOf(Vec(4, UInt(16.W))).map(f => MXFType.BF16.recode(f))
   val bf16b = io.b.asTypeOf(Vec(4, UInt(16.W))).map(f => MXFType.BF16.recode(f))
   val bf16c = io.c.asTypeOf(Vec(4, UInt(16.W))).map(f => MXFType.BF16.recode(f))
-  // 8-bit operands are first rewritten as E5M3 numbers. A P3109 build reads its
-  // formats with p3109ToE5M3 instead of the OCP reader (see p3109Fp8.scala).
-  def read8(f: UInt) = p3109 match {
-    case Some(fmt) => p3109ToE5M3(f, io.altfmt, fmt.p4Finite, fmt.p3Finite)
-    case None      => fp8ToE5M3(f, io.altfmt)
+  def read8(u: UInt) = p3109 match {
+    case Some(f) => p3109ToE5M3(u, io.altfmt, f)
+    case None    => fp8ToE5M3(u, io.altfmt)
   }
   val f8a = io.a.asTypeOf(Vec(8, UInt(8.W))).map(f => MXFType.E5M3.recode(read8(f)))
   val f8b = io.b.asTypeOf(Vec(8, UInt(8.W))).map(f => MXFType.E5M3.recode(read8(f)))
@@ -354,13 +352,9 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
 
       val select_out = out_select(data_type)
       if (data_type == MXFType.E5M3){
-        // 8-bit result: rounded into the OCP formats, or into P3109 in a P3109 build.
-        // (Widened results, below, are BF16 in both builds.)
-        // This runs once per core, and for an 8-bit operation every core is busy
-        // with one lane -- so each gets its own rounder, fed its own raw shape.
         val (out_bits, exc_flags) = p3109 match {
-          case Some(fmt) => rawUnroundedToP3109(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, fmt)
-          case None      => rawUnroundedToFp8(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
+          case Some(f) => rawUnroundedToP3109(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, f)
+          case None    => rawUnroundedToFp8(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
         }
 
         when (select_out) {
@@ -415,9 +409,7 @@ trait FMAFactory extends FunctionalUnitFactory {
   ).map(_.pipelined(depth)).map(_.restrictSEW(0,1,2,3)).flatten
 }
 
-// p3109 = Some(...): the FMA's 8-bit operands and results use IEEE P3109 instead of OCP FP8
-// (only the segmented FMA pipe supports 8-bit formats at all).
-case class SIMDFPFMAFactory(depth: Int, elementWiseFP64: Boolean = false, segmentedFPFMA: Boolean = false, mxFPFMA: Boolean, p3109: Option[P3109Formats] = None) extends FMAFactory {
+case class SIMDFPFMAFactory(depth: Int, elementWiseFP64: Boolean = false, segmentedFPFMA: Boolean = false, mxFPFMA: Boolean, p3109: Option[P3109Formats]) extends FMAFactory {
   def insns = if (elementWiseFP64) {
     base_insns.map { insn =>
       if (insn.lookup(SEW).value == 3 || (insn.lookup(SEW).value == 2 && insn.lookup(Wide2VD).value == 1)) {
@@ -432,7 +424,7 @@ case class SIMDFPFMAFactory(depth: Int, elementWiseFP64: Boolean = false, segmen
   def generate(implicit p: Parameters) = new FPFMAPipe(depth, elementWiseFP64, segmentedFPFMA, mxFPFMA, p3109)(p)
 }
 
-class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats] = None)(implicit p: Parameters) extends PipelinedFunctionalUnit(depth)(p) with HasFPUParameters {
+class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats])(implicit p: Parameters) extends PipelinedFunctionalUnit(depth)(p) with HasFPUParameters {
   val supported_insns = SIMDFPFMAFactory(depth, elementwiseFP64, segmentedFPFMA, mxFPFMA, p3109).insns
 
   io.stall := false.B
@@ -452,12 +444,7 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
   val nTandemFMA = dLenB / 8
 
   val eidx = Mux(io.pipe(0).bits.acc, 0.U, io.pipe(0).bits.eidx)
-  // 1.0 in each element format, handed to the pipe as the multiplier of an add.
-  // The pipes currently replace it with their own recoded 1.0 whenever the
-  // instruction is an add (see fma.io.b above), so this value never reaches a
-  // core -- but it should still say 1.0. The 8-bit formats disagree on where
-  // 1.0 is: OCP E4M3 puts it at 0x38 and E5M2 at 0x3C, while P3109 puts it at
-  // the midway code point, 0x40, in both formats (P3109 Annex A.5).
+  // 1.0 is 0x40 in both P3109 formats
   val one8_bits = if (p3109.isDefined) "h4040404040404040".U
                   else Mux(altfmt, "h3C3C3C3C3C3C3C3C".U, "h3838383838383838".U)
   val one_bits = Mux1H(Seq(vd_eew === 3.U, vd_eew === 2.U, vd_eew === 1.U, vd_eew === 0.U),
