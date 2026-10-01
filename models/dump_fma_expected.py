@@ -7,8 +7,8 @@ core, built exactly as that core would build it (raw_from_exact), in both
 normalisations: significand in [1,2), and the same value one binade lower with
 the significand in [2,4) -- the doShiftSigDown1 branch only the FMA can reach.
 
-The expected code comes from fma_ref.project, the exact rational reference --
-not from the Python rounder model -- so the RTL is compared against truth.
+The expected code comes from fma_ref.project and the expected exception flags
+from flags_ref -- exact rational references, not the Python rounder model.
 
 Cases, per domain:
   A. every operand pair, x {mul, add, sub}, x {binary8p4, binary8p3}, RNE
@@ -20,7 +20,7 @@ Record, 16 bytes little-endian (read by tb_p3109_fma_round.cpp):
   u8  flags   isNaN | isInf<<1 | isZero<<2 | sign<<3 | altfmt<<4
   u8  rm      rounding mode, RISC-V frm encoding
   u8  want    expected 8-bit code
-  u8  pad
+  u8  wantExc expected exception flags, NV DZ OF UF NX in bits 4..0
   i32 sExp
   u64 sig
 """
@@ -37,6 +37,7 @@ from gfloat.types import Domain, Signedness
 from gfloat_ref import FRM
 from fma_ref import OPS, exact, project, binary_inputs
 from fma_raw import CORES, raw_from_exact  # noqa: E402
+from flags_ref import p3109_flags  # noqa: E402
 
 out_dir = sys.argv[1] if len(sys.argv) > 1 else "."
 REC = struct.Struct("<BBBBiQ")
@@ -45,7 +46,7 @@ RNE = FRM["rne"]
 
 
 def cases(fi):
-    """Yield (altfmt, frm, exact result, expected code) for one format."""
+    """Yield (frm, exact result, expected code) for one format."""
     for op in ("mul", "add", "sub"):
         xs = [exact(fi, c) for c in range(256)]
         for a in range(256):
@@ -67,12 +68,13 @@ for dom_name, dom in (("ext", Domain.Extended), ("fin", Domain.Finite)):
         n = 0
         for frm, r, want in cases(fi):
             n += 1
+            want_exc = sum(on << (4 - i) for i, on in enumerate(p3109_flags(r, fi, frm)))
             for core, (ew, sw) in CORES.items():
                 for shifted in (False, True):
                     raw = raw_from_exact(r, ew, sw + 2, shifted)
                     flags = (raw["isNaN"] | raw["isInf"] << 1 | raw["isZero"] << 2
                              | raw["sign"] << 3 | altfmt << 4)
-                    bufs[core] += REC.pack(flags, frm, want, 0, raw["sExp"], raw["sig"])
+                    bufs[core] += REC.pack(flags, frm, want, want_exc, raw["sExp"], raw["sig"])
         print(f"  {dom_name} {fmt}: {n} cases x {len(CORES)} cores x 2 normalisations",
               flush=True)
     for core, buf in bufs.items():

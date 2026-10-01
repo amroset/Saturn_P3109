@@ -17,12 +17,13 @@ class P3109ConvWrapper(formats: P3109Formats, name: String) extends RawModule {
     val out            = Output(UInt(8.W))
     val exceptionFlags = Output(UInt(5.W))
   })
+  val raw = hardfloat.rawFloatFromFN(8, 8, io.in)
   val rounder = Module(new P3109Rounder(8, 8, formats, sigMSBitAlwaysZero = true))
-  rounder.io.in             := hardfloat.rawFloatFromFN(8, 8, io.in)
+  rounder.io.in             := raw
   rounder.io.altfmt         := io.altfmt
   rounder.io.roundingMode   := io.roundingMode
   rounder.io.sat            := io.sat
-  rounder.io.invalidExc     := false.B
+  rounder.io.invalidExc     := hardfloat.isSigNaNRawFloat(raw)   // as FPConvBlock drives it
   rounder.io.detectTininess := hardfloat.consts.tininess_afterRounding
   io.out            := rounder.io.out
   io.exceptionFlags := rounder.io.exceptionFlags

@@ -253,16 +253,19 @@ def unified_round(raw, fmt, mode, sat=False, finite=False,
         s_rounded_exp == f["emax"] and frac > max_frac)
     common_total_underflow = s_rounded_exp < f["min_nonzero"]
 
-    # hardfloat's underflow, with tininess detected after rounding.
+    # hardfloat's underflow, with tininess detected after rounding. Its bit
+    # positions are relative to the format's last kept bit, which sits
+    # prec_shift places higher for a narrower format.
+    lsb = (1 if do_shift_down1 else 0) + f["prec_shift"]
     round_carry = (rounded_sig >> (SIG_INT + 1 if do_shift_down1 else SIG_INT)) & 1
-    ur_round_pos_bit = (adjusted_sig >> (2 if do_shift_down1 else 1)) & 1
-    ur_any_round = (do_shift_down1 and (adjusted_sig >> 2) & 1) or (adjusted_sig & 0b11) != 0
+    ur_round_pos_bit = (adjusted_sig >> (lsb + 1)) & 1
+    ur_any_round = (adjusted_sig & ((1 << (lsb + 2)) - 1)) != 0
     ur_round_incr = ((near_even or near_max) and ur_round_pos_bit) or (round_mag_up and ur_any_round)
     common_underflow = common_total_underflow or (
         any_round and s_adjusted_exp <= f["min_norm"]
-        and ((round_mask >> (3 if do_shift_down1 else 2)) & 1)
+        and ((round_mask >> (lsb + 2)) & 1)
         and not (detect_tininess_after
-                 and not ((round_mask >> (4 if do_shift_down1 else 3)) & 1)
+                 and not ((round_mask >> (lsb + 3)) & 1)
                  and round_carry and round_pos_bit and ur_round_incr))
     common_inexact = common_total_underflow or any_round
 

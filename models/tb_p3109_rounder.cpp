@@ -1,8 +1,9 @@
 // Standalone Verilator testbench for the unified P3109 rounder.
 //
 // Sweeps every BF16 pattern through every rounding mode (round-to-odd included), both formats and both
-// saturation settings, and compares the hardware against expected_<domain>.bin,
-// which models/dump_expected.py writes from the Python model.
+// saturation settings, and compares the code and the exception flags against
+// expected_<domain>.bin, which models/dump_expected.py writes from gfloat,
+// rto_ref and flags_ref.
 //
 // Built by run_rtl_check.sh, which verilates one wrapper at a time.
 
@@ -17,9 +18,10 @@ int main(int argc, char** argv) {
 
     FILE* f = fopen(argv[1], "rb");
     if (!f) { perror("expected"); return 2; }
-    std::vector<unsigned char> expected(1572864);   // 65536 x 6 modes x 2 x 2
-    if (fread(expected.data(), 1, expected.size(), f) != expected.size()) {
-        fprintf(stderr, "short expected file\n"); return 2;
+    // code and flags per case; 65536 patterns x 6 modes x 2 formats x 2 sat
+    std::vector<unsigned char> expected(2 * 65536 * 6 * 2 * 2);
+    if (fread(expected.data(), 1, expected.size(), f) != expected.size() || fgetc(f) != EOF) {
+        fprintf(stderr, "expected file has the wrong size\n"); return 2;
     }
     fclose(f);
 
@@ -42,11 +44,14 @@ int main(int argc, char** argv) {
                     dut->io_sat = sat;
                     dut->eval();
                     unsigned got = dut->io_out & 0xFF;
-                    if (got != expected[i]) {
+                    unsigned got_flags = dut->io_exceptionFlags & 0x1F;
+                    unsigned want = expected[2 * i], want_flags = expected[2 * i + 1];
+                    if (got != want || got_flags != want_flags) {
                         if (bad_here == 0)
-                            printf("   MISMATCH %s sat=%d %s: bf16 0x%04X got 0x%02X want 0x%02X\n",
+                            printf("   MISMATCH %s sat=%d %s: bf16 0x%04X got 0x%02X/%02X "
+                                   "want 0x%02X/%02X (code/flags)\n",
                                    altfmt ? "binary8p3" : "binary8p4", sat, modes[frm],
-                                   bits, got, expected[i]);
+                                   bits, got, got_flags, want, want_flags);
                         bad_here++;
                     }
                 }

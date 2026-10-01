@@ -281,18 +281,20 @@ class P3109Rounder(
                        ((sRoundedExp === emax) && (frac > maxFrac))
   val commonTotalUnderflow = sRoundedExp < minNonzero
 
-  // hardfloat's underflow, with tininess judged after rounding.
+  // hardfloat's underflow, with tininess judged after rounding. Its bit
+  // positions are relative to the format's last kept bit, which sits
+  // precShift places higher for a narrower format.
+  val lsb = doShiftSigDown1.asUInt +& precShift
   val roundCarry = Mux(doShiftSigDown1, roundedSig(IntSig + 1), roundedSig(IntSig))
-  val unboundedRoundPosBit = Mux(doShiftSigDown1, adjustedSig(2), adjustedSig(1))
-  val unboundedAnyRound =
-    (doShiftSigDown1 && adjustedSig(2)) || adjustedSig(1, 0).orR
+  val unboundedRoundPosBit = (adjustedSig >> (lsb +& 1.U))(0)
+  val unboundedAnyRound = (adjustedSig & ((1.U << (lsb +& 2.U)) - 1.U)).orR
   val unboundedRoundIncr =
     ((nearEven || nearMax) && unboundedRoundPosBit) || (roundMagUp && unboundedAnyRound)
   val commonUnderflow = commonTotalUnderflow ||
     (anyRound && (sAdjustedExp <= minNorm) &&
-      Mux(doShiftSigDown1, roundMask(3), roundMask(2)) &&
+      (roundMask >> (lsb +& 2.U))(0) &&
       !((io.detectTininess === hardfloat.consts.tininess_afterRounding) &&
-        !Mux(doShiftSigDown1, roundMask(4), roundMask(3)) &&
+        !(roundMask >> (lsb +& 3.U))(0) &&
         roundCarry && roundPosBit && unboundedRoundIncr))
 
   val commonInexact = commonTotalUnderflow || anyRound
