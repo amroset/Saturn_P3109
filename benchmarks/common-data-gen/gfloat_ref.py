@@ -1,39 +1,37 @@
 """Reference model for 8-bit float conversions, backed by gfloat.
 
-Replaces the Spike-based reference in gen_data.c/gen_data.sh.  Spike implements
-the OCP FP8 formats but has no IEEE P3109 support, so it cannot be the golden
-model once the conversion unit is retargeted.
+Replaces the Spike-based reference in gen_data.c/gen_data.sh.  gfloat is the
+reference library of the IEEE P3109 working group and implements the OCP FP8
+formats directly, so the expected values no longer depend on a simulator that
+must itself be trusted to round correctly.
 
-gfloat has been cross-checked against Spike on all six FP8 arrays of the
-checked-in vec-mx-unary/data.S (128/128 each); see validate_gfloat.py.
+Two things this buys over the Spike flow:
+
+  * every rounding mode, not just the default.  Spike's generator drove one
+    mode, so directed rounding was never checked.
+  * inputs chosen for the edges -- the overflow threshold, the top binade, the
+    subnormal boundary, exact ties -- instead of a uniform random range.
+
+gfloat has been cross-checked against the Spike-generated vectors preserved in
+data.S.spike-golden; see validate_gfloat.py.
 
 Requires Python >= 3.10.  gfloat declares >= 3.8.1 but uses match statements.
 
-Spec baseline: IEEE P3109 Interim Report v4.0.3 (1 Sept 2026).
-gfloat 0.5.2 (Aug 2025) predates it, so its vocabulary lags the standard:
+Note on gfloat's saturation flag, whose meaning is easy to get backwards:
 
-  saturation   gfloat sat=False  == SatNone     (overflow to +/-Inf, except that
-                                                 directed rounding clamps to maxFinite)
-               gfloat sat=True   == SatFinite   (clamps +/-Inf too)
-               SatPropagate      == not available; emulate by running sat=True and
-                                    restoring +/-Inf wherever the input was infinite.
+    sat=False   overflow goes to +/-Inf, except that directed rounding
+                (toward zero, and toward the sign) clamps to maxFinite instead
+    sat=True    clamps +/-Inf as well
 
-  rounding     gfloat Stochastic        == StochasticC   (verified, sec 4.7.4 formulas)
-               gfloat StochasticFast    == StochasticB
-               gfloat StochasticFastest == StochasticA
-               gfloat StochasticOdd     == none of them (a gfloat extension)
-               ToOdd                    == not in gfloat 0.5.2, though sec 4.2 defines it
-
-Beware: "SatFinite" named a *different* mode in report v2.0 (29 Oct 2024), where the
-three modes were SatMax / SatFinite / OvfInf.  v4.0.3 renamed and reassigned them.
+The RVV .sat instruction variants correspond to sat=True; the plain forms to
+sat=False.  This was established by cross-checking against Spike, not assumed.
 """
 
 import math
 import random
 
 from gfloat import RoundMode, decode_float, encode_float, round_float
-from gfloat.formats import format_info_bfloat16, format_info_ocp_e4m3, format_info_ocp_e5m2
-from gfloat.formats import format_info_p3109
+from gfloat.formats import format_info_bfloat16, format_info_ocp_e4m3, format_info_ocp_e5m2, format_info_p3109
 from gfloat.types import Domain, Signedness
 
 BF16 = format_info_bfloat16
@@ -49,27 +47,27 @@ FRM = {
     "rmm": (4, RoundMode.TiesToAway),     # nearest, ties away from zero
 }
 
-# altfmt=0 and altfmt=1 respectively, for each supported 8-bit standard.
-FP8_STANDARDS = {
-    "ocp": {
-        "altfmt0": format_info_ocp_e4m3,
-        "altfmt1": format_info_ocp_e5m2,
-    },
-    "p3109": {
-        "altfmt0": format_info_p3109(8, 4, Signedness.Signed, Domain.Extended),
-        "altfmt1": format_info_p3109(8, 3, Signedness.Signed, Domain.Extended),
-    },
-    # Both P3109 formats in the finite domain: no infinities, 0x7F / 0xFF are the
-    # largest numbers.  Matches the P3109FiniteV256D128ShuttleConfig build.
-    "p3109-finite": {
-        "altfmt0": format_info_p3109(8, 4, Signedness.Signed, Domain.Finite),
-        "altfmt1": format_info_p3109(8, 3, Signedness.Signed, Domain.Finite),
-    },
+# Which 8-bit format each value of vtype.altfmt selects, at SEW=8.
+FP8 = {
+    "altfmt0": format_info_ocp_e4m3,
+    "altfmt1": format_info_ocp_e5m2,
 }
 
-# Canonical NaN each format is expected to produce.  P3109 has exactly one NaN
-# encoding; the OCP formats and BF16 have many, and the hardware emits the
-# canonical one.
+def p3109_format(precision, finite):
+    """Signed 8-bit P3109 binary8p<precision>, finite or extended domain."""
+    return format_info_p3109(8, precision, Signedness.Signed,
+                             Domain.Finite if finite else Domain.Extended)
+
+
+# The same, for each 8-bit standard a build can use (VectorParams.p3109)
+FP8_STANDARDS = {
+    "ocp": FP8,
+    "p3109": {"altfmt0": p3109_format(4, False), "altfmt1": p3109_format(3, False)},
+    "p3109-finite": {"altfmt0": p3109_format(4, True), "altfmt1": p3109_format(3, True)},
+}
+
+# Canonical NaN each format is expected to produce.  A format usually has many
+# NaN encodings and the hardware emits one of them.
 # RISC-V emits the quiet NaN with zero payload: exponent all ones, significand MSB set.
 CANONICAL_NAN = {
     "binary16": 0x7E00,
@@ -84,7 +82,7 @@ CANONICAL_NAN = {
 def canonical_nan(fi):
     if fi.name in CANONICAL_NAN:
         return CANONICAL_NAN[fi.name]
-    return fi.code_of_nan  # P3109 has exactly one NaN, so this is canonical
+    return fi.code_of_nan  # a format with a single NaN encoding
 
 
 def convert(src_fi, dst_fi, bits, rnd=RoundMode.TiesToEven, sat=False):
@@ -116,10 +114,11 @@ def narrowing_inputs(dst_fi, count=128, seed=0, src_fi=BF16):
     """Bit patterns in `src_fi` chosen to exercise narrowing into `dst_fi`.
 
     Deliberately biased toward the encodings where the implementation is
-    delicate: the top binade (where a P3109 or OCP encoder must splice a
-    wider-exponent rounder in), the overflow threshold, the subnormal
-    boundary, exact ties, negative values that round to zero, and the
-    extremes of the source format itself.
+    delicate: the top binade (where the OFP8 E4M3 encoder must splice in a
+    wider-exponent rounder, because that binade is finite in OFP8 but Inf/NaN
+    in IEEE), the overflow threshold, the subnormal boundary, exact ties,
+    negative values that round to zero, and the extremes of the source format
+    itself.
 
     The patterns are encoded in `src_fi`, so they must match the source the
     caller converts from -- FP32 for the FP32 -> FP16/BF16 arrays.  Passing
@@ -128,18 +127,14 @@ def narrowing_inputs(dst_fi, count=128, seed=0, src_fi=BF16):
     """
     vals = []
 
-    # Specials.  -0.0 matters: P3109 has no negative zero, so it must flush to
-    # +0 rather than land on the NaN code point.
+    # Specials, including -0.0: narrowing must preserve the sign of zero.
     vals += [_enc(src_fi, 0.0), _enc(src_fi, -0.0)]
     vals += [encode_float(src_fi, float("inf")), encode_float(src_fi, float("-inf"))]
     vals += [CANONICAL_NAN[src_fi.name]]
 
     # Extremes of the source format.  The groups below track the destination's
-    # edges and never reach the source's own top binade.  That binade matters
-    # for P3109: the x2 input scaling must not turn it into infinities, because
-    # an infinite operand suppresses the rounder's overflow flag -- and the
-    # result then changes under SatNone with rounding toward zero, and under
-    # SatPropagate always.
+    # edges and never reach the source's own top binade, so it is added here:
+    # the largest finite source value and the start of its last binade.
     for v in (src_fi.max, 2.0 ** src_fi.emax):
         vals += [_enc(src_fi, v), _enc(src_fi, -v)]
 

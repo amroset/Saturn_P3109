@@ -20,13 +20,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "common-d
 from gfloat import RoundMode  # noqa: E402
 from gfloat.formats import format_info_bfloat16, format_info_binary16, format_info_binary32  # noqa: E402
 from fma_ref import binary  # noqa: E402
-from gfloat_ref import FP8_STANDARDS  # noqa: E402
+from gfloat_ref import FP8  # noqa: E402
 
 FORMATS = {   # name: (operand format, operand bytes, widened result format, its bytes)
     "fp16": (format_info_binary16, 2, format_info_binary32, 4),
     "bf16": (format_info_bfloat16, 2, format_info_binary32, 4),
-    "e4m3": (FP8_STANDARDS["ocp"]["altfmt0"], 1, format_info_bfloat16, 2),
-    "e5m2": (FP8_STANDARDS["ocp"]["altfmt1"], 1, format_info_bfloat16, 2),
+    "e4m3": (FP8["altfmt0"], 1, format_info_bfloat16, 2),
+    "e5m2": (FP8["altfmt1"], 1, format_info_bfloat16, 2),
 }
 OPS = ("mul", "add", "sub", "wmul", "wadd", "wsub")
 

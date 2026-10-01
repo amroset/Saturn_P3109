@@ -31,7 +31,7 @@ LIB=$PDK/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 "$HERE/gen_verilog.sh" "$CONFIG"
 mkdir -p "$OUT"
-$PY "$HERE/collect_hier.py" "$GEN" "$TOP" > "$OUT/files.txt"
+$PY "$HERE/../models/collect_hier.py" "$GEN" "$TOP" > "$OUT/files.txt"
 
 cat > "$OUT/synth.ys" <<EOF
 read_verilog -sv -DSYNTHESIS $(tr '\n' ' ' < "$OUT/files.txt")

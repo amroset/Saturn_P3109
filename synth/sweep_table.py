@@ -54,7 +54,7 @@ def short(config):
     if m:
         return "{" + ",".join(m.group(1)) + "}"
     return {"MXV256D128ShuttleConfig": "OCP",
-            "P3109UnifiedV256D128ShuttleConfig": "{3,4} pair"}.get(config, config)
+            "P3109V256D128ShuttleConfig": "{3,4} pair"}.get(config, config)
 
 
 if __name__ == "__main__":

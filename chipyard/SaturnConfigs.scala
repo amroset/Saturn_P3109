@@ -109,9 +109,6 @@ class MXV256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
-// Same as MXV256D128ShuttleConfig, but the 8-bit conversions use IEEE P3109
-// (binary8p4 / binary8p3) instead of OCP FP8 (E4M3 / E5M2), both in the
-// extended domain (with infinities).
 class P3109V256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109Params) ++
   new chipyard.config.WithSystemBusWidth(128) ++
@@ -119,8 +116,6 @@ class P3109V256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
-// The same, with both P3109 formats in the finite domain (no infinities:
-// 0x7F / 0xFF are the largest numbers).
 class P3109FiniteV256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109FiniteParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++
@@ -128,16 +123,6 @@ class P3109FiniteV256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
-// The same as P3109V256D128ShuttleConfig, but the conversion unit uses the
-// single runtime-selectable rounder instead of four fixed ones.
-class P3109UnifiedV256D128ShuttleConfig extends Config(
-  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109UnifiedParams) ++
-  new chipyard.config.WithSystemBusWidth(128) ++
-  new shuttle.common.WithShuttleTileBeatBytes(16) ++
-  new shuttle.common.WithNShuttleCores(1) ++
-  new chipyard.config.AbstractConfig)
-
-// The unified build with block scaling in the conversion unit (p3109Block.scala).
 class P3109BlockV256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++
@@ -152,19 +137,11 @@ class P3109BlockFiniteV256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
-class P3109UnifiedFiniteV256D128ShuttleConfig extends Config(
-  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109UnifiedFiniteParams) ++
-  new chipyard.config.WithSystemBusWidth(128) ++
-  new shuttle.common.WithShuttleTileBeatBytes(16) ++
-  new shuttle.common.WithNShuttleCores(1) ++
-  new chipyard.config.AbstractConfig)
-
-// Precision sweep (exu/fp/p3109Sweep.scala): each config is named after the
-// binary8pP formats its units carry. Only binary8p4/p3 are reachable from
-// software; the rest are built so synthesis can measure what they cost.
-// P3109Sweep34 is the pair on the sweep's generic reader (the baseline), and
-// P3109Sweep346 is the control for P3109Sweep3456: if cost follows the widest
-// and narrowest precision rather than how many there are, the two match.
+// Precision sweep (exu/fp/P3109Sweep.scala), named after the binary8pP formats
+// the units carry; for synthesis only. P3109Sweep34 is the pair on the sweep's
+// generic reader, the baseline. P3109Sweep346 is the control for
+// P3109Sweep3456: if cost follows the widest precision rather than how many
+// formats there are, the two match.
 class P3109Sweep34V256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109SweepParams()) ++
   new chipyard.config.WithSystemBusWidth(128) ++

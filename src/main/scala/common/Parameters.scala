@@ -61,47 +61,36 @@ object VectorParams {
     useMxConversion = true,
   )
 
-  // Same as mxParams, but every 8-bit float in the vector unit is IEEE P3109
-  // (binary8p4 / binary8p3) instead of OCP FP8 (E4M3 / E5M2): both the conversion
-  // instructions and the multiply-add unit's 8-bit operands and results.
-  // Both formats in the extended domain (with infinities).
+  // p3109Params:
+  // Same as mxParams, with IEEE P3109 binary8p4/binary8p3 in place of OCP FP8
   def p3109Params = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended))
+    p3109 = Some(P3109Formats())
   )
-  // The same as p3109Params, but the conversion unit uses the single
-  // runtime-selectable rounder (P3109Rounder.scala) instead of four fixed ones.
-  def p3109UnifiedParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended, unified = true))
-  )
-  def p3109UnifiedFiniteParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, unified = true))
-  )
-  // The unified build plus block scaling in the conversion unit: ConvertFromBlock
-  // on the widening side, ConvertToBlock on the narrowing side (see
-  // p3109Block.scala). No instruction delivers a scale yet, so every lane is
-  // given 2^0 and this behaves exactly like p3109UnifiedParams.
-  def p3109BlockParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended,
-                              unified = true, block = true))
-  )
-  def p3109BlockFiniteParams = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite,
-                              unified = true, block = true))
-  )
-  // The same, with both formats in the finite domain (no infinities).
-  def p3109FiniteParams = mxParams.copy(
+
+  // p3109FiniteParams:
+  // Same as p3109Params, both formats in the finite domain (no infinities)
+  def p3109FiniteParams = p3109Params.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))
   )
 
-  // Precision sweep (exu/fp/p3109Sweep.scala): the conversion and multiply-add
-  // units carry binary8p4, binary8p3 and the `extra` precisions, all in the
-  // extended domain. Only the pair is reachable from software; the others are
-  // there to be synthesized and measured. With no extras this is the pair on
-  // the sweep's generic reader, the like-for-like baseline.
-  def p3109SweepParams(extra: Int*) = mxParams.copy(
-    p3109 = Some(P3109Formats(p4 = P3109Domain.Extended, p3 = P3109Domain.Extended,
-                              unified = true, general = true,
-                              extra = extra.map(p => (p, P3109Domain.Extended))))
+  // p3109BlockParams:
+  // Same as p3109Params, with block scale factors in the conversion unit.
+  // Every lane gets scale 2^0 until the ISA can deliver one.
+  def p3109BlockParams = p3109Params.copy(
+    p3109 = Some(P3109Formats(block = true))
+  )
+
+  // p3109BlockFiniteParams:
+  // Same as p3109BlockParams, both formats in the finite domain
+  def p3109BlockFiniteParams = p3109Params.copy(
+    p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, block = true))
+  )
+
+  // p3109SweepParams:
+  // Same as p3109Params, with the extra precisions in the conversion and FMA
+  // units, for synthesis. Only binary8p4/p3 are reachable from software.
+  def p3109SweepParams(extra: Int*) = p3109Params.copy(
+    p3109 = Some(P3109Formats(general = true, extra = extra))
   )
 
   def opuParams = genParams.copy(
@@ -218,16 +207,16 @@ object VXFunctionalUnitGroups {
   def sharedFPFMA(pipeDepth: Int) = Seq(
     SharedScalarFPFMAFactory(pipeDepth)
   )
-  def fpFMA(pipeDepth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, p3109: Option[P3109Formats] = None) = Seq(
+  def fpFMA(pipeDepth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, p3109: Option[P3109Formats]) = Seq(
     SIMDFPFMAFactory(pipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA, p3109)
   )
-  def fpMisc(useMxConversion: Boolean, p3109: Option[P3109Formats] = None) = Seq(
+  def fpMisc(useMxConversion: Boolean, p3109: Option[P3109Formats]) = Seq(
     FPDivSqrtFactory,
     FPCmpFactory,
     FPConvFactory(useMxConversion, p3109)
   )
 
-  def allFPFUs(fmaPipeDepth: Int, useScalarFPFMA: Boolean, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, useMxConversion: Boolean, p3109: Option[P3109Formats] = None) = {
+  def allFPFUs(fmaPipeDepth: Int, useScalarFPFMA: Boolean, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, useMxFPFMA: Boolean, useMxConversion: Boolean, p3109: Option[P3109Formats]) = {
     require(!(useScalarFPFMA && useMxFPFMA))
     (if (useScalarFPFMA) sharedFPFMA(fmaPipeDepth) else fpFMA(fmaPipeDepth, elementwiseFP64, segmentedFPFMA, useMxFPFMA, p3109)) ++
     fpMisc(useMxConversion, p3109)
@@ -368,6 +357,44 @@ object VectorIssueStructure {
   }
 }
 
+// IEEE P3109 8-bit formats (Interim Report v4.0.3): binary8p4 (altfmt = 0) and
+// binary8p3 (altfmt = 1). Extended domain: 0x7F/0xFF are +-Inf. Finite: they
+// are the largest finite values, and a result that would overflow to Inf is NaN.
+sealed trait P3109Domain
+object P3109Domain {
+  case object Extended extends P3109Domain
+  case object Finite extends P3109Domain
+}
+
+// Precision sweep (exu/fp/P3109Sweep.scala): `extra` lists more precisions, in
+// the extended domain, selected by format codes 2, 3, ... whose upper bits no
+// instruction sets yet. `general` reads 8-bit operands with the generic reader;
+// on its own it is the pair, the sweep's baseline.
+case class P3109Formats(
+  p4: P3109Domain = P3109Domain.Extended,
+  p3: P3109Domain = P3109Domain.Extended,
+  block: Boolean = false, // Block scale factors in FPConv
+  general: Boolean = false,
+  extra: Seq[Int] = Nil
+) {
+  require(!(general && block), "the precision sweep has no block scaling")
+  require(extra.isEmpty || general, "extra precisions need general = true")
+  require(extra.forall(p => p >= 2 && p <= 7 && p != 3 && p != 4) && extra.distinct.size == extra.size,
+    "extra precisions must be distinct, in 2..7, and not 3 or 4")
+
+  def p4Finite = p4 == P3109Domain.Finite
+  def p3Finite = p3 == P3109Domain.Finite
+  // (precision, finite) by format code: 0 is binary8p4, 1 binary8p3, then the extras
+  def list: Seq[(Int, Boolean)] = Seq((4, p4Finite), (3, p3Finite)) ++ extra.map((_, false))
+  def maxPrecision = list.map(_._1).max
+  def fmtWidth = log2Ceil(list.size) max 1 // bit 0 is altfmt
+}
+
+object P3109Formats {
+  // Format-code bits above altfmt; none unless the build lists extra precisions
+  def fmtHiWidth(p3109: Option[P3109Formats]) = p3109.map(_.fmtWidth - 1).getOrElse(0)
+}
+
 case class VectorParams(
   // In-order dispatch Queue
   vdqEntries: Int = 4,
@@ -407,7 +434,7 @@ case class VectorParams(
   // Minifloat support
   useMxFPFMA: Boolean = false,
   useMxConversion: Boolean = false,
-  p3109: Option[P3109Formats] = None, // Some(...): 8-bit conversions use IEEE P3109 instead of OCP FP8 (needs useMxConversion)
+  p3109: Option[P3109Formats] = None, // IEEE P3109 in place of OCP FP8 (FPConv and FMA)
   useMxOPU: Boolean = false,
 
   // for comparisons only
@@ -440,6 +467,7 @@ case class VectorParams(
     saturn.insns.OPMVOUT.VX)
   def supported_ex_insns = issStructure.generate(this).map(_.insns).flatten ++ (if (useOpu) opuInsns else Nil)
 
+  // A P3109 build uses the zvfofp8min encodings for its own 8-bit formats
   def vExts = 
     (if (useMxConversion) Seq("zvfofp8min", "zfbfmin", "zvfbfmin", "zvfbfa") else Seq()) ++
     (if (useMxFPFMA) Seq() else Seq())
@@ -451,12 +479,8 @@ case class VectorParams(
   require((dLen & (dLen - 1)) == 0, "dLen must be power of 2")
   require(mLen >= 64 && mLen <= 512, "mLen must be >= 64 and <= 512")
   require((mLen & (mLen - 1)) == 0, "mLen must be power of 2")
-  // The outer product unit still reads its 8-bit operands as OCP FP8
-  // (fp8ToE5M3 in OuterProductUnit.scala). Built next to a P3109 vector unit it
-  // would read P3109 bytes as E4M3/E5M2 and give wrong results without any
-  // error, so refuse the combination until the OPU is retargeted.
-  require(!(useOpu && p3109.isDefined),
-    "the outer product unit reads OCP FP8 only; it is not retargeted to P3109 yet")
+  require(p3109.isEmpty || useMxConversion, "P3109 needs useMxConversion")
+  require(!(useMxOPU && p3109.isDefined), "the MX outer product unit reads OCP FP8 only")
 }
 
 case object VectorParamsKey extends Field[VectorParams]
