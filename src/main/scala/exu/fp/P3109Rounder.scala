@@ -27,8 +27,6 @@ object P3109Rounder {
 
   // The mask decoder covers the widest format's subnormal range; the others reach it through delta
   def maskBottom(outSigWidth: Int) = expBias + 1 - (1 << (7 - outSigWidth))   // the widest format's minNorm
-  def maskTop(outSigWidth: Int) = maskBottom(outSigWidth) - outSigWidth - 1
-  def maskExpWidth(outSigWidth: Int) = log2Ceil(maskBottom(outSigWidth) + 1)
 }
 
 // Per-format constants, with exponents biased by P3109Rounder.expBias
@@ -42,7 +40,6 @@ case class P3109FormatInfo(precision: Int, finite: Boolean, outSigWidth: Int) {
   val minNonzero = minNorm - fracBits
   val emax       = expBias + ((1 << expBits) - 1 - bias)
   val maxFrac    = (1 << fracBits) - (if (finite) 1 else 2) // 0x7F is Inf in the extended domain
-  val maxCode    = if (finite) 0x7F else 0x7E
   val delta      = maskBottom(outSigWidth) - minNorm
   val precShift  = outSigWidth - precision
 
@@ -56,8 +53,8 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   import P3109Rounder.expBias
   val outSigWidth = formats.maxPrecision
   val maskBottom = P3109Rounder.maskBottom(outSigWidth)
-  val maskTop = P3109Rounder.maskTop(outSigWidth)
-  val maskExpWidth = P3109Rounder.maskExpWidth(outSigWidth)
+  val maskTop = maskBottom - outSigWidth - 1
+  val maskExpWidth = log2Ceil(maskBottom + 1)
 
   override def desiredName = s"P3109Rounder_ie${inExpWidth}_is${inSigWidth}"
 
@@ -67,12 +64,11 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
     val roundingMode   = Input(UInt(3.W))
     val sat            = Input(Bool()) // SatFinite instead of SatNone
     val invalidExc     = Input(Bool())
-    val detectTininess = Input(UInt(1.W))
     val out            = Output(UInt(8.W))
     val exceptionFlags = Output(UInt(5.W))
   })
 
-  val infos = formats.list.map { case (p, finite) => P3109FormatInfo(p, finite, outSigWidth) }
+  val infos = formats.byCode.map { case (p, finite) => P3109FormatInfo(p, finite, outSigWidth) }
   // One width per constant, so the choice is between like wires
   def pickU(f: P3109FormatInfo => Int) = {
     val w = infos.map(i => log2Ceil(f(i) + 1)).max max 1
@@ -90,8 +86,6 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   val minNonzero = pickS(_.minNonzero)
   val emax       = pickS(_.emax)
   val maxFrac    = pickU(_.maxFrac)
-  val bias       = pickS(_.bias)
-  val maxCode    = pickU(_.maxCode)
   val finite     = P3109Sweep.pick(io.fmt, infos.map(_.finite.B))
 
   val roundingMode_near_even   = io.roundingMode === hardfloat.consts.round_near_even
@@ -161,11 +155,11 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   val unboundedRange_roundIncr =
     ((roundingMode_near_even || roundingMode_near_maxMag) && unboundedRange_roundPosBit) ||
       (roundMagUp && unboundedRange_anyRound)
+  // hardfloat also requires sAdjustedExp <= minNorm, because its mask exponent is
+  // truncated and can alias; maskExpClamped cannot, so the mask bit implies it
   val common_underflow = common_totalUnderflow ||
-    (anyRound && (sAdjustedExp <= minNorm) &&
-      (roundMask >> (lsb +& 2.U))(0) &&
-      !((io.detectTininess === hardfloat.consts.tininess_afterRounding) &&
-        !(roundMask >> (lsb +& 3.U))(0) &&
+    (anyRound && (roundMask >> (lsb +& 2.U))(0) &&
+      !(!(roundMask >> (lsb +& 3.U))(0) &&
         roundCarry && roundPosBit && unboundedRange_roundIncr))
 
   val common_inexact = common_totalUnderflow || anyRound
@@ -180,19 +174,21 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   // finite value; round-to-odd goes to Inf/NaN too (P3109 4.7.5)
   val overflow_roundMagUp =
     roundingMode_near_even || roundingMode_near_maxMag || roundMagUp || roundingMode_odd
-  val pegMinNonzeroMagOut = commonCase && common_totalUnderflow && (roundMagUp || roundingMode_odd)
+  // Read only where commonCase && common_totalUnderflow holds (the output Mux)
+  val pegMinNonzeroMagOut = roundMagUp || roundingMode_odd
 
   val signBit        = io.in.sign ## 0.U(7.W)
   val nanCode        = "h80".U(8.W)
-  val maxFiniteCode  = signBit | maxCode
+  val maxFiniteCode  = signBit | "h7E".U | finite // 0x7F is Inf in the extended domain
   val infCode        = Mux(finite, nanCode, signBit | "h7F".U)
 
-  // The mask already rounded a subnormal onto its grid, so this shift is exact
+  // The mask already rounded a subnormal onto its grid, so this shift is exact.
+  // Not total underflow, so the shift is at most fracBits and the field is nonzero.
   val subnormalShift = (minNorm - sRoundedExp)(log2Ceil(outSigWidth) - 1, 0)   // at most precision - 1
   val sigWithHidden  = ((1.U(7.W) << fracBits) | frac)(6, 0)
   val subnormalField = (sigWithHidden >> subnormalShift)(6, 0)
 
-  val normalExpField = (sRoundedExp - expBias.S + bias).asUInt
+  val normalExpField = (sRoundedExp - minNorm + 1.S).asUInt
   val normalCode     = signBit | ((normalExpField << fracBits) | frac)(6, 0)
 
   io.out := Mux(isNaNOut, nanCode,
@@ -200,9 +196,7 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
             Mux(io.in.isZero, 0.U,
             Mux(overflow, Mux(io.sat || !overflow_roundMagUp, maxFiniteCode, infCode),
             Mux(common_totalUnderflow, Mux(pegMinNonzeroMagOut, signBit | 1.U, 0.U),
-            Mux(sRoundedExp < minNorm,
-                Mux(subnormalField === 0.U, 0.U, signBit | subnormalField),
-                normalCode))))))
+            Mux(sRoundedExp < minNorm, signBit | subnormalField, normalCode))))))
 
   io.exceptionFlags := io.invalidExc ## false.B ## overflow ## underflow ## inexact
 }
@@ -220,7 +214,6 @@ object rawUnroundedToP3109 {
     rounder.io.roundingMode := roundingMode
     rounder.io.sat := false.B
     rounder.io.invalidExc := unroundedInvalidExc
-    rounder.io.detectTininess := hardfloat.consts.tininess_afterRounding
     (rounder.io.out, rounder.io.exceptionFlags)
   }
 }

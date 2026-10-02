@@ -83,7 +83,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
   val raw16 = VecInit(in16.map(u => f2raw(FType.H, u)))
   val rawBF16 = VecInit(in16.map(u => f2raw(MXFType.BF16, u)))
   val raw8 = VecInit(in8.map(u => f2raw(core8, p3109 match {
-    case Some(f) if f.general => p3109ToCore(u, in_fmt, f)
+    case Some(f) if f.genericReader => p3109ToCore(u, in_fmt, f)
     case Some(f) => p3109ToE5M3(u, io.in_altfmt, f)
     case None    => fp8ToE5M3(u, io.in_altfmt)
   })))
@@ -115,6 +115,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
   val s1_frm = RegEnable(io.frm, io.valid)
   val s1_truncating = RegEnable(io.truncating, io.valid)
   val s1_rto = RegEnable(io.rto, io.valid)
+  val s1_rm = Mux(s1_rto, hardfloat.consts.round_odd, s1_frm)
   val s1_i2f = RegEnable(io.i2f, io.valid)
   val s1_f2i = RegEnable(io.f2i, io.valid)
   val s1_widen = RegEnable(io.widen, io.valid)
@@ -224,7 +225,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
     f2f.io.detectTininess := hardfloat.consts.tininess_afterRounding
   }
   (bf162e5m3 ++ bf162e4m3 ++ bf162e5m2 ++ s2bf16 ++ s2h ++ d2s).foreach { f2f =>
-    f2f.io.roundingMode := Mux(s1_rto, "b110".U, s1_frm)
+    f2f.io.roundingMode := s1_rm
   }
 
   // P3109 narrowing. ConvertToBlock (5.5.2) removes the scale first; invalid
@@ -234,9 +235,8 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
     f.io.in := RegEnable(if (use_scale) P3109Scale.project(rawBF16(i), scale8.get(2*i)) else rawBF16(i), io.valid)
     f.io.invalidExc := RegEnable(hardfloat.isSigNaNRawFloat(rawBF16(i)), io.valid)
     f.io.fmt := s1_fmt
-    f.io.roundingMode := Mux(s1_rto, "b110".U, s1_frm)
+    f.io.roundingMode := s1_rm
     f.io.sat := s1_sat
-    f.io.detectTininess := hardfloat.consts.tininess_afterRounding
   }
 
   val out = WireInit(0.U(64.W))
@@ -268,7 +268,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
   val s2d_out = s2d.map(f => RegEnable(FType.D.ieee(f.io.out), s1_valid))
 
   val bf162e5m2_out = bf162e5m2.map(f => RegEnable(saturateE5M2(MXFType.E5M2.ieee(f.io.out), s1_sat), s1_valid))
-  val bf162e4m3_out = bf162e5m3.zip(bf162e4m3).map(f => RegEnable(assembleOFPE4M3(MXFType.E5M3.ieee(f._1.io.out), MXFType.E4M3.ieee(f._2.io.out), s1_sat, Mux(s1_rto, "b110".U, s1_frm)), s1_valid))
+  val bf162e4m3_out = bf162e5m3.zip(bf162e4m3).map(f => RegEnable(assembleOFPE4M3(MXFType.E5M3.ieee(f._1.io.out), MXFType.E4M3.ieee(f._2.io.out), s1_sat, s1_rm), s1_valid))
   val bf162p3109_out = bf162p3109.map(f => RegEnable(f.io.out, s1_valid))
   val s2bf16_out = s2bf16.map(f => RegEnable(MXFType.BF16.ieee(f.io.out), s1_valid))
   val s2h_out = s2h.map(f => RegEnable(FType.H.ieee(f.io.out), s1_valid))

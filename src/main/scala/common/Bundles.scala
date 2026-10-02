@@ -180,7 +180,7 @@ class ExecuteMicroOp(nFUs: Int)(implicit p: Parameters) extends CoreBundle()(p) 
   val sew     = UInt(2.W)
   val altfmt = Bool()
   // Precision sweep: the P3109 format-code bits above altfmt (exu/fp/P3109Sweep.scala)
-  val p3109_fmt_hi = Option.when(P3109Formats.fmtHiWidth(vParams.p3109) > 0)(UInt(P3109Formats.fmtHiWidth(vParams.p3109).W))
+  val p3109_fmt_hi = Some(P3109Formats.fmtHiWidth(vParams.p3109)).filter(_ > 0).map(w => UInt(w.W))
 
   val scalar = UInt(64.W)
 

@@ -79,11 +79,13 @@ int main(int argc, char** argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <conv.bin|fma.bin>\n", argv[0]); return 2; }
     FILE* f = fopen(argv[1], "rb");
     if (!f) { perror(argv[1]); return 2; }
-    std::vector<Rec> recs;
-    Rec r;
-    while (fread(&r, sizeof r, 1, f) == 1) recs.push_back(r);
+    fseek(f, 0, SEEK_END);
+    long bytes = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (bytes <= 0 || bytes % sizeof(Rec)) { fprintf(stderr, "bad record file %s\n", argv[1]); return 2; }
+    std::vector<Rec> recs(bytes / sizeof(Rec));
+    if (fread(recs.data(), sizeof(Rec), recs.size(), f) != recs.size()) { perror("read"); return 2; }
     fclose(f);
-    if (recs.empty()) { fprintf(stderr, "no records in %s\n", argv[1]); return 2; }
 
     auto ctx = std::make_unique<VerilatedContext>();
     auto t = std::make_unique<VTOP>(ctx.get());
@@ -110,15 +112,23 @@ int main(int argc, char** argv) {
     }
 
     // The latency under which the most of records 64..1087 line up (scored, so
-    // one wrong answer cannot hide it)
-    int lat = 0, best = -1;
+    // one wrong answer cannot hide it). Stop if no latency stands out: records
+    // with equal outputs can make two latencies score the same.
+    int lat = 0, best = -1, second = -1;
+    size_t window = 0;
     for (int L = 0; L < kMaxLat; L++) {
         int score = 0;
-        for (size_t k = 64; k < 1088 && k < recs.size(); k++)
+        window = 0;
+        for (size_t k = 64; k < 1088 && k < recs.size(); k++, window++)
             score += !((out[k + L] ^ recs[k].expect) & mask_of(recs[k]));
-        if (score > best) { best = score; lat = L; }
+        if (score > best) { second = best; best = score; lat = L; }
+        else if (score > second) second = score;
     }
-    printf("   latency %d cycles\n", lat);
+    printf("   latency %d cycles (%d of %zu records line up; next best %d)\n", lat, best, window, second);
+    if (best == second || best < 0.99 * window) {
+        fprintf(stderr, "error: cannot tell the latency from records 64..1087\n");
+        return 2;
+    }
 
     uint64_t bad[16] = {0}, n[16] = {0}, total = 0;
     for (size_t k = 0; k < recs.size(); k++) {

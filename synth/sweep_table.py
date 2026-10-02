@@ -83,7 +83,7 @@ if __name__ == "__main__":
         line("total area, flattened", [flats[c][0] for c in builds],
              lambda v: f"{v:.0f}" if v else "-")
         line("  vs baseline", [flats[c][0] for c in builds],
-             lambda v: f"{100 * (v - flats[base][0]) / flats[base][0]:+.1f}%" if v else "-")
+             lambda v: f"{100 * (v - flats[base][0]) / flats[base][0]:+.1f}%" if v and flats[base][0] else "-")
         line("critical path (ns)", [flats[c][1] for c in builds],
              lambda v: f"{v:.2f}" if v else "-")
         print("per module (hierarchical, before buffering):")

@@ -82,7 +82,7 @@ object VectorParams {
 
   // p3109BlockFiniteParams:
   // Same as p3109BlockParams, both formats in the finite domain
-  def p3109BlockFiniteParams = p3109Params.copy(
+  def p3109BlockFiniteParams = p3109BlockParams.copy(
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite, block = true))
   )
 
@@ -90,7 +90,7 @@ object VectorParams {
   // Same as p3109Params, with the extra precisions in the conversion and FMA
   // units, for synthesis. Only binary8p4/p3 are reachable from software.
   def p3109SweepParams(extra: Int*) = p3109Params.copy(
-    p3109 = Some(P3109Formats(general = true, extra = extra))
+    p3109 = Some(P3109Formats(genericReader = true, extra = extra))
   )
 
   def opuParams = genParams.copy(
@@ -366,28 +366,29 @@ object P3109Domain {
   case object Finite extends P3109Domain
 }
 
-// Precision sweep (exu/fp/P3109Sweep.scala): `extra` lists more precisions, in
-// the extended domain, selected by format codes 2, 3, ... whose upper bits no
-// instruction sets yet. `general` reads 8-bit operands with the generic reader;
-// on its own it is the pair, the sweep's baseline.
+// Precision sweep (exu/fp/P3109Sweep.scala). `extra` adds precisions in the
+// extended domain. Format codes 2, 3, ... select them. No instruction sets the
+// upper code bits yet. `genericReader` makes the units read 8-bit operands with
+// p3109ToCore. With `genericReader` and no `extra`, the build is the sweep's
+// baseline: binary8p4 and binary8p3 on p3109ToCore.
 case class P3109Formats(
   p4: P3109Domain = P3109Domain.Extended,
   p3: P3109Domain = P3109Domain.Extended,
   block: Boolean = false, // Block scale factors in FPConv
-  general: Boolean = false,
+  genericReader: Boolean = false,
   extra: Seq[Int] = Nil
 ) {
-  require(!(general && block), "the precision sweep has no block scaling")
-  require(extra.isEmpty || general, "extra precisions need general = true")
+  require(!(genericReader && block), "the precision sweep has no block scaling")
+  require(extra.isEmpty || genericReader, "extra precisions need genericReader = true")
   require(extra.forall(p => p >= 2 && p <= 7 && p != 3 && p != 4) && extra.distinct.size == extra.size,
     "extra precisions must be distinct, in 2..7, and not 3 or 4")
 
   def p4Finite = p4 == P3109Domain.Finite
   def p3Finite = p3 == P3109Domain.Finite
   // (precision, finite) by format code: 0 is binary8p4, 1 binary8p3, then the extras
-  def list: Seq[(Int, Boolean)] = Seq((4, p4Finite), (3, p3Finite)) ++ extra.map((_, false))
-  def maxPrecision = list.map(_._1).max
-  def fmtWidth = log2Ceil(list.size) max 1 // bit 0 is altfmt
+  def byCode: Seq[(Int, Boolean)] = Seq((4, p4Finite), (3, p3Finite)) ++ extra.map((_, false))
+  def maxPrecision = byCode.map(_._1).max
+  def fmtWidth = log2Ceil(byCode.size) // at least 1, bit 0 being altfmt
 }
 
 object P3109Formats {

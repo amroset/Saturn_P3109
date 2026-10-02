@@ -279,8 +279,8 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.iss.bits.vd_eew    := vd_eew
   io.iss.bits.sew       := inst.vconfig.vtype.vsew
   io.iss.bits.altfmt    := inst.vconfig.vtype.altfmt
-  // No instruction reaches the sweep's extra formats: zero, kept so firtool
-  // does not fold them out of the units
+  // No instruction selects the sweep's extra formats yet, so these bits are
+  // zero. dontTouch stops firtool from removing the extra formats from the units.
   io.iss.bits.p3109_fmt_hi.foreach(f => f := dontTouch(WireInit(0.U(f.getWidth.W))))
   io.iss.bits.eidx      := eidx
   io.iss.bits.vl        := inst.vconfig.vl

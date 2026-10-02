@@ -37,17 +37,13 @@ object P3109Sweep {
 
   // The type 8-bit operands are read into, in FPConv and the FMA
   def core8(p3109: Option[P3109Formats]): FType =
-    p3109.filter(_.general).map(f => coreFor(f.list.map(_._1))).getOrElse(MXFType.E5M3)
+    p3109.filter(_.genericReader).map(f => coreFor(f.byCode.map(_._1))).getOrElse(MXFType.E5M3)
 
-  // Choose a per-format value by format code. Two formats are one mux on bit 0,
-  // as in the pair's datapath; unused codes beyond the list read as binary8p4.
+  // Choose a per-format value by format code (fmtWidth bits). Two formats are
+  // one mux on bit 0, as in the pair's datapath; unused codes read as binary8p4.
   def pick[T <: Data](fmt: UInt, xs: Seq[T]): T =
-    if (xs.size == 1) xs.head
-    else if (xs.size == 2) Mux(fmt(0), xs(1), xs(0))
-    else {
-      val n = 1 << log2Ceil(xs.size)
-      VecInit(xs ++ Seq.fill(n - xs.size)(xs.head))(fmt(log2Ceil(xs.size) - 1, 0))
-    }
+    if (xs.size == 2) Mux(fmt(0), xs(1), xs(0))
+    else VecInit(xs ++ Seq.fill((1 << fmt.getWidth) - xs.size)(xs.head))(fmt)
 }
 
 // Any of the build's P3109 formats to its core8 type, which holds them exactly.
@@ -57,16 +53,16 @@ object P3109Sweep {
 object p3109ToCore {
 
   def apply(in: Bits, fmt: UInt, formats: P3109Formats): UInt = {
-    val core = P3109Sweep.core8(Some(formats))
-    val E = core.exp
-    val S = core.sig
-    val coreBias = (1 << (E - 1)) - 1
+    val core8 = P3109Sweep.core8(Some(formats))
+    val expW = core8.exp
+    val sigW = core8.sig
+    val coreBias = (1 << (expW - 1)) - 1
     val sign = in(7)
     val isZero = in === "h00".U
     val isNaN = in === "h80".U
 
-    // Per format: (exponent, S-bit significand, 0x7F/0xFF is Inf)
-    val decoded = formats.list.map { case (p, finite) =>
+    // Per format: (exponent, sigW-bit significand, 0x7F/0xFF is Inf)
+    val decoded = formats.byCode.map { case (p, finite) =>
       val f = p - 1
       val bias = 1 << (7 - p)
       val expField = in(6, f)
@@ -80,21 +76,23 @@ object p3109ToCore {
       val isSub = expField === 0.U
       val exp = Mux(isSub, subExp, normExp)
       val frac = Mux(isSub, subFrac, fracField)
-      (exp.pad(10), (1.U(1.W) ## frac ## 0.U((S - p).W))(S - 1, 0), (!finite).B)
+      (exp, (1.U(1.W) ## frac ## 0.U((sigW - p).W))(sigW - 1, 0), (!finite).B)
     }
-    val exp = P3109Sweep.pick(fmt, decoded.map(_._1))
+    val decodedExpW = decoded.map(_._1.getWidth).max
+    val exp = P3109Sweep.pick(fmt, decoded.map(_._1.pad(decodedExpW)))
     val sig = P3109Sweep.pick(fmt, decoded.map(_._2))
     val isInf = in(6, 0) === "h7F".U && P3109Sweep.pick(fmt, decoded.map(_._3))
 
     // Below the core's smallest normal, shift into a core subnormal
     val isCoreNormal = exp >= (1 - coreBias).S
-    val normExpField = (exp + coreBias.S).asUInt.apply(E - 1, 0)
+    val biasedExp = (exp + coreBias.S).asUInt
+    val normExpField = biasedExp(expW - 1, 0)
     val subShift = ((1 - coreBias).S - exp).asUInt
-    val subFracField = (sig >> subShift)(S - 2, 0)
-    val number = Mux(isCoreNormal, sign ## normExpField ## sig(S - 2, 0), sign ## 0.U(E.W) ## subFracField)
+    val subFracField = (sig >> subShift)(sigW - 2, 0)
+    val number = Mux(isCoreNormal, sign ## normExpField ## sig(sigW - 2, 0), sign ## 0.U(expW.W) ## subFracField)
 
-    Mux(isNaN, 0.U(1.W) ## Fill(E, 1.U(1.W)) ## 1.U(1.W) ## 0.U((S - 2).W),
-      Mux(isInf, sign ## Fill(E, 1.U(1.W)) ## 0.U((S - 1).W),
-        Mux(isZero, 0.U((E + S).W), number)))
+    Mux(isNaN, 0.U(1.W) ## Fill(expW, 1.U(1.W)) ## 1.U(1.W) ## 0.U((sigW - 2).W),
+      Mux(isInf, sign ## Fill(expW, 1.U(1.W)) ## 0.U((sigW - 1).W),
+        Mux(isZero, 0.U((expW + sigW).W), number)))
   }
 }

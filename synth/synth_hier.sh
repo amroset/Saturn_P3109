@@ -8,22 +8,26 @@
 # is before buffering, and optimizations across module boundaries are lost,
 # so the total runs a little above the flattened figure. Use it to see where
 # area sits, and synth_unit.sh for the totals.
+#
+# Environment overrides: YOSYS, PDK and PYTHON, as for synth_unit.sh.
 set -euo pipefail
 export LC_ALL=C
 
+[ $# -eq 2 ] || { echo "usage: $0 <CONFIG> <top module>" >&2; exit 2; }
 CONFIG=$1
 TOP=$2
 HERE=$(cd "$(dirname "$0")" && pwd)
 CY=$(cd "$HERE/../../.." && pwd)
 GEN=$HERE/verilog/$CONFIG
 OUT=$HERE/runs/$CONFIG/$TOP.hier
-PY=$CY/.conda-env/bin/python
+PY=${PYTHON:-$CY/.conda-env/bin/python}
 YOSYS=${YOSYS:-$HOME/.conda-yosys/bin/yosys}
 PDK=${PDK:-$HOME/.conda-sky130/share/pdk/sky130A/libs.ref/sky130_fd_sc_hd}
 LIB=$PDK/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 "$HERE/gen_verilog.sh" "$CONFIG"
 mkdir -p "$OUT"
+rm -f "$OUT/area.txt"
 $PY "$HERE/../models/collect_hier.py" "$GEN" "$TOP" > "$OUT/files.txt"
 
 cat > "$OUT/synth.ys" <<EOF
