@@ -11,10 +11,14 @@
 # Inputs and outputs are treated as registered elsewhere (zero external delay),
 # so the numbers are the unit's own logic. No place-and-route: area is cell
 # area, not die area, and timing uses the library's wire-load model rather
-# than extracted wires.
+# than extracted wires. The clock period is a whole number of ns.
+#
+# Environment overrides: YOSYS, OPENROAD, PDK (the sky130_fd_sc_hd directory),
+# PYTHON (runs ../models/collect_hier.py), and FIRTOOL (see gen_verilog.sh).
 set -euo pipefail
 export LC_ALL=C                  # decimal points, not commas, in awk/printf
 
+[ $# -ge 2 ] || { echo "usage: $0 <CONFIG> <top module> [clock period ns]" >&2; exit 2; }
 CONFIG=$1
 TOP=$2
 PERIOD=${3:-20}
@@ -23,7 +27,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 CY=$(cd "$HERE/../../.." && pwd)
 GEN=$HERE/verilog/$CONFIG
 OUT=$HERE/runs/$CONFIG/$TOP
-PY=$CY/.conda-env/bin/python
+PY=${PYTHON:-$CY/.conda-env/bin/python}
 YOSYS=${YOSYS:-$HOME/.conda-yosys/bin/yosys}
 OPENROAD=${OPENROAD:-$HOME/.conda-openroad/bin/openroad}
 PDK=${PDK:-$HOME/.conda-sky130/share/pdk/sky130A/libs.ref/sky130_fd_sc_hd}
@@ -31,6 +35,7 @@ LIB=$PDK/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 "$HERE/gen_verilog.sh" "$CONFIG"
 mkdir -p "$OUT"
+rm -f "$OUT/summary.txt"   # a failed run must not leave the last one's numbers
 $PY "$HERE/../models/collect_hier.py" "$GEN" "$TOP" > "$OUT/files.txt"
 
 cat > "$OUT/synth.ys" <<EOF

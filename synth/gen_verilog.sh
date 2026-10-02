@@ -8,8 +8,11 @@
 # sims/verilator, with the same flags plus disallowPackedArrays -- the option
 # Chipyard itself adds under ENABLE_YOSYS_FLOW (common.mk) -- and writes the
 # result here, so the simulator's Verilog is left alone.
+#
+# Environment override: FIRTOOL.
 set -euo pipefail
 
+[ $# -eq 1 ] || { echo "usage: $0 <CONFIG>" >&2; exit 2; }
 CONFIG=$1
 HERE=$(cd "$(dirname "$0")" && pwd)
 CY=$(cd "$HERE/../../.." && pwd)
@@ -18,7 +21,7 @@ BUILD=$CY/sims/verilator/generated-src/$LONG
 OUT=$HERE/verilog/$CONFIG
 FIRTOOL=${FIRTOOL:-$CY/.conda-env/riscv-tools/bin/firtool}
 
-[ -f "$BUILD/$LONG.fir" ] || { echo "no FIRRTL for $CONFIG: run make verilog CONFIG=$CONFIG in sims/verilator first"; exit 1; }
+[ -f "$BUILD/$LONG.fir" ] || { echo "error: no FIRRTL for $CONFIG; run make -C sims/verilator verilog CONFIG=$CONFIG first" >&2; exit 1; }
 if [ "$OUT/.done" -nt "$BUILD/$LONG.fir" ]; then exit 0; fi   # already up to date
 
 rm -rf "$OUT"
