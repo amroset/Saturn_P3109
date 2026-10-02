@@ -65,7 +65,7 @@ def emit(out, std, count, summary):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--std", choices=sorted(FP8_STANDARDS), default="ocp", help="8-bit formats of the build (default: ocp)")
-    ap.add_argument("-n", "--count", type=int, default=COUNT, help="elements per array (default: 128)")
+    ap.add_argument("-n", "--count", type=int, default=COUNT, help=f"elements per array (default: {COUNT})")
     ap.add_argument("-o", "--output", help="write here instead of stdout")
     ap.add_argument("--summary", action="store_true", help="print the input categories of each array to stderr")
     args = ap.parse_args()
