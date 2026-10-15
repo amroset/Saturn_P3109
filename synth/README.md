@@ -25,6 +25,7 @@ about 1 ns for no design reason. Do not compare timing below that.
 | `synth_hier.sh` | Synthesizes one unit with its hierarchy kept: area per module |
 | `run_all.sh` | Runs `synth_unit.sh` on both units of each config, in parallel |
 | `breakdown.py` | Compares the per-module areas of two configs |
+| `sweep_table.py` | Tabulates the precision sweep's results (this branch only) |
 
 The scripts write to `verilog/` and `runs/`, which git ignores. The unit's
 module files are found with `../models/collect_hier.py`.
@@ -75,3 +76,39 @@ python3 generators/saturn/synth/breakdown.py FPConvPipe MXV256D128ShuttleConfig 
 `breakdown.py` lists each module's area in both configs and the difference.
 Its total is before buffering and without optimization across modules, so it
 is a little larger than the area from step 3.
+
+## Precision sweep (this branch only)
+
+The `P3109Sweep*V256D128ShuttleConfig` configs carry extra P3109 precisions
+(see `models/README.md`). `sweep_table.py` puts their results side by side,
+against the baseline `P3109Sweep34V256D128ShuttleConfig`.
+
+1. Generate the Verilog of each sweep config:
+
+   ```bash
+   source env.sh
+   for c in 34 234 345 3456 34567 234567 346; do
+     make -C sims/verilator verilog CONFIG=P3109Sweep${c}V256D128ShuttleConfig
+   done
+   ```
+
+2. Get the area and critical path of each config, then the area per module:
+
+   ```bash
+   cfgs=$(for c in 34 234 345 3456 34567 234567 346; do echo P3109Sweep${c}V256D128ShuttleConfig; done)
+   generators/saturn/synth/run_all.sh $cfgs
+   for c in $cfgs; do
+     generators/saturn/synth/synth_hier.sh $c FPConvPipe
+     generators/saturn/synth/synth_hier.sh $c FPFMAPipe
+   done
+   ```
+
+3. Print the table:
+
+   ```bash
+   python3 generators/saturn/synth/sweep_table.py $cfgs
+   ```
+
+   The first config is the baseline. Each column gives the flattened area, its
+   change against the baseline, the critical path, and the area per module
+   group.

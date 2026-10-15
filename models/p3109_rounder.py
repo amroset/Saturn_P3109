@@ -1,8 +1,10 @@
 """Bit-accurate Python model of P3109Rounder.scala.
 
-Rounds a hardfloat RawFloat to an 8-bit P3109 code, binary8p4 ("p4") or
-binary8p3 ("p3"). The steps and names follow hardfloat's RoundAnyRawFNToRecFN
-and the Chisel module, so the two can be read side by side. Checked against
+Rounds a hardfloat RawFloat to an 8-bit P3109 code. The format is binary8p4
+("p4"), binary8p3 ("p3"), or, in a precision sweep, any binary8pP. The
+datapath is sig_int bits wide, the precision of the widest format. The steps
+and names follow hardfloat's RoundAnyRawFNToRecFN and the Chisel module, so
+the two can be read side by side. Checked against
 gfloat, rto_ref and flags_ref by the validate_*.py scripts.
 """
 
@@ -73,44 +75,46 @@ def raw_from_fn(bits, exp_width, sig_width):
 # ---------------------------------------------------------------------------
 
 
-SIG_INT = 4        # datapath significand width: binary8p4's precision
+SIG_INT = 4        # datapath significand width: binary8p4's precision, for the pair
 B_INT = 256        # internal exponent bias, BF16's
 EXP_SLICE = 10     # bits of exponent fed to the mask decoder
 
-# The mask decoder covers binary8p4's subnormal range; binary8p3 reaches it via delta
-MASK_BOTTOM = B_INT - 7
-MASK_TOP = MASK_BOTTOM - SIG_INT - 1
 
-# Exponents biased by B_INT. delta moves the subnormal threshold to the format's
-# smallest normal; prec_shift is the precision the format lacks against SIG_INT.
-FMT = {
-    "p4": dict(
-        frac_bits=3,
-        min_norm=B_INT - 7,        # emin = -7
-        min_nonzero=B_INT - 10,    # emin - (P-1) = -10, hardfloat's outMinNonzeroExp
-        emax=B_INT + 7,
-        delta=0, prec_shift=0,     # the datapath is built for this format
-    ),
-    "p3": dict(
-        frac_bits=2,
-        min_norm=B_INT - 15,       # emin = -15
-        min_nonzero=B_INT - 17,
-        emax=B_INT + 15,
-        delta=8, prec_shift=1,     # 249 - 241 = 8, and one fewer fraction bit
-    ),
-}
+def mask_bounds(sig_int):
+    """(top, bottom) of the mask decoder, which covers the widest format's
+    subnormal range; the other formats reach it via delta."""
+    bottom = B_INT + 1 - (1 << (7 - sig_int))
+    return bottom - sig_int - 1, bottom
+
+
+def fmt_info(P, sig_int):
+    """binary8pP's constants, exponents biased by B_INT. delta moves the
+    subnormal threshold to the format's smallest normal; prec_shift is the
+    precision the format lacks against the datapath."""
+    assert 2 <= P <= sig_int
+    bias = 1 << (7 - P)
+    min_norm = B_INT + 1 - bias
+    return dict(
+        frac_bits=P - 1,
+        min_norm=min_norm,
+        min_nonzero=min_norm - (P - 1),           # hardfloat's outMinNonzeroExp
+        emax=B_INT + (1 << (8 - P)) - 1 - bias,
+        delta=mask_bounds(sig_int)[1] - min_norm,
+        prec_shift=sig_int - P,
+    )
 
 
 def p3109_round(raw, fmt, mode, sat=False, finite=False,
                 in_exp_width=8, in_sig_width=8,
-                invalid_exc=False, sig_msb_always_zero=True):
+                invalid_exc=False, sig_msb_always_zero=True, sig_int=SIG_INT):
     """Round a hardfloat RawFloat to an 8-bit P3109 code.
 
-    fmt is "p4" or "p3" (altfmt), finite selects the domain, sat the SatFinite
-    variant. Returns (code, flags), flags = (invalid, infinite, overflow,
-    underflow, inexact).
+    fmt is "p4" or "p3" (altfmt), or a precision P; finite selects the domain,
+    sat the SatFinite variant. Returns (code, flags), flags = (invalid,
+    infinite, overflow, underflow, inexact).
     """
-    f = FMT[fmt]
+    f = fmt_info({"p4": 4, "p3": 3}.get(fmt, fmt), sig_int)
+    mask_top, mask_bottom = mask_bounds(sig_int)
 
     near_even, near_max = mode == RNE, mode == RMM
     odd = mode == RODD
@@ -120,21 +124,21 @@ def p3109_round(raw, fmt, mode, sat=False, finite=False,
     s_adjusted_exp = raw["sExp"] + (B_INT - (1 << in_exp_width))
 
     # --- align the significand (hardfloat: adjustedSig) --------------------
-    # [top][hidden][3 fraction][guard][sticky]
-    if in_sig_width <= SIG_INT + 2:
-        adjusted_sig = raw["sig"] << (SIG_INT - in_sig_width + 2)
+    # [top][hidden][sig_int-1 fraction][guard][sticky]
+    if in_sig_width <= sig_int + 2:
+        adjusted_sig = raw["sig"] << (sig_int - in_sig_width + 2)
     else:
-        keep = raw["sig"] >> (in_sig_width - SIG_INT - 1)
-        rest = raw["sig"] & ((1 << (in_sig_width - SIG_INT - 1)) - 1)
+        keep = raw["sig"] >> (in_sig_width - sig_int - 1)
+        rest = raw["sig"] & ((1 << (in_sig_width - sig_int - 1)) - 1)
         adjusted_sig = (keep << 1) | (1 if rest else 0)
 
-    do_shift_down1 = 0 if sig_msb_always_zero else (adjusted_sig >> (SIG_INT + 2)) & 1
+    do_shift_down1 = 0 if sig_msb_always_zero else (adjusted_sig >> (sig_int + 2)) & 1
 
     # --- the round mask: subnormal widening moved by delta, then prec_shift --
     mask_exp = (s_adjusted_exp + f["delta"]) & ((1 << EXP_SLICE) - 1)
-    mask_body = low_mask(mask_exp, EXP_SLICE, MASK_TOP, MASK_BOTTOM) | do_shift_down1
+    mask_body = low_mask(mask_exp, EXP_SLICE, mask_top, mask_bottom) | do_shift_down1
     mask_body = (mask_body << f["prec_shift"]) | ((1 << f["prec_shift"]) - 1)
-    mask_body &= (1 << (SIG_INT + 1)) - 1
+    mask_body &= (1 << (sig_int + 1)) - 1
     round_mask = (mask_body << 2) | 0b11
 
     shifted_round_mask = round_mask >> 1
@@ -153,12 +157,12 @@ def p3109_round(raw, fmt, mode, sat=False, finite=False,
         if odd and any_round:
             rounded_sig |= round_pos_mask >> 1
 
-    s_rounded_exp = s_adjusted_exp + (rounded_sig >> SIG_INT)
+    s_rounded_exp = s_adjusted_exp + (rounded_sig >> sig_int)
 
-    # binary8p4's fraction field; binary8p3's low bit is always masked off
-    frac_out = ((rounded_sig >> 1) if do_shift_down1 else rounded_sig) & 0b111
-    assert fmt == "p4" or frac_out & 1 == 0
-    frac = frac_out >> (3 - f["frac_bits"])
+    # The widest format's fraction field; a narrower format's low bits are masked off
+    frac_out = ((rounded_sig >> 1) if do_shift_down1 else rounded_sig) & ((1 << (sig_int - 1)) - 1)
+    assert frac_out & ((1 << f["prec_shift"]) - 1) == 0
+    frac = frac_out >> f["prec_shift"]
 
     # --- range checks: against the format's largest finite value ------------
     max_frac = (1 << f["frac_bits"]) - (1 if finite else 2)
@@ -168,7 +172,7 @@ def p3109_round(raw, fmt, mode, sat=False, finite=False,
 
     # Tininess after rounding, at the format's last kept bit
     lsb = (1 if do_shift_down1 else 0) + f["prec_shift"]
-    round_carry = (rounded_sig >> (SIG_INT + 1 if do_shift_down1 else SIG_INT)) & 1
+    round_carry = (rounded_sig >> (sig_int + 1 if do_shift_down1 else sig_int)) & 1
     ur_round_pos_bit = (adjusted_sig >> (lsb + 1)) & 1
     ur_any_round = (adjusted_sig & ((1 << (lsb + 2)) - 1)) != 0
     ur_round_incr = ((near_even or near_max) and ur_round_pos_bit) or (round_mag_up and ur_any_round)

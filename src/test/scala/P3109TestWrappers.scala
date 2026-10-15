@@ -21,7 +21,7 @@ class P3109ConvWrapper(formats: P3109Formats, name: String) extends RawModule {
   val raw = hardfloat.rawFloatFromFN(8, 8, io.in)
   val rounder = Module(new P3109Rounder(8, 8, formats, sigMSBitAlwaysZero = true))
   rounder.io.in := raw
-  rounder.io.altfmt := io.altfmt
+  rounder.io.fmt := io.altfmt
   rounder.io.roundingMode := io.roundingMode
   rounder.io.sat := io.sat
   rounder.io.invalidExc := hardfloat.isSigNaNRawFloat(raw)

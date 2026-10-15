@@ -64,18 +64,19 @@ def totals(unit, config):
     return area, count
 
 
-unit, a, b = sys.argv[1:4]
-A, nA = totals(unit, a)
-B, nB = totals(unit, b)
-tA, tB = sum(A.values()), sum(B.values())
+if __name__ == "__main__":
+    unit, a, b = sys.argv[1:4]
+    A, nA = totals(unit, a)
+    B, nB = totals(unit, b)
+    tA, tB = sum(A.values()), sum(B.values())
 
-rows = sorted(set(A) | set(B), key=lambda m: -abs(B.get(m, 0) - A.get(m, 0)))
-print(f"{unit}: {a} -> {b}")
-print(f"{'module':46} {'copies':>11} {'area A':>10} {'area B':>10} {'B - A':>10}")
-for m in rows:
-    d = B.get(m, 0) - A.get(m, 0)
-    if abs(d) < 1 and A.get(m, 0) < 0.01 * tA:
-        continue
-    print(f"{m:46} {nA.get(m, 0):>5}->{nB.get(m, 0):<5} {A.get(m, 0):>10.0f} {B.get(m, 0):>10.0f} {d:>+10.0f}")
-print(f"{'TOTAL (hierarchical, before buffering)':46} {'':11} {tA:>10.0f} {tB:>10.0f} {tB - tA:>+10.0f}"
-      f"  ({100 * (tB - tA) / tA:+.1f}%)")
+    rows = sorted(set(A) | set(B), key=lambda m: -abs(B.get(m, 0) - A.get(m, 0)))
+    print(f"{unit}: {a} -> {b}")
+    print(f"{'module':46} {'copies':>11} {'area A':>10} {'area B':>10} {'B - A':>10}")
+    for m in rows:
+        d = B.get(m, 0) - A.get(m, 0)
+        if abs(d) < 1 and A.get(m, 0) < 0.01 * tA:
+            continue
+        print(f"{m:46} {nA.get(m, 0):>5}->{nB.get(m, 0):<5} {A.get(m, 0):>10.0f} {B.get(m, 0):>10.0f} {d:>+10.0f}")
+    print(f"{'TOTAL (hierarchical, before buffering)':46} {'':11} {tA:>10.0f} {tB:>10.0f} {tB - tA:>+10.0f}"
+          f"  ({100 * (tB - tA) / tA:+.1f}%)")

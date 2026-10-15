@@ -137,3 +137,35 @@ generators/saturn/models/run_opu_check.sh OPUV256D128P3109ShuttleConfig /tmp/p31
 `OPUV256D128MxShuttleConfig` on OCP FP8.
 
 Pass: `TOTAL MISMATCHES: 0` on the last line.
+
+## Precision sweep
+
+The `P3109Sweep*V256D128ShuttleConfig` configs carry more formats than
+binary8p4 and binary8p3, for synthesis (see
+`src/main/scala/exu/fp/P3109Sweep.scala`). Format codes 2, 3, ... select the
+extra formats. No instruction sets those codes yet, so the checks drive the
+units directly.
+
+| File | Checks |
+|---|---|
+| `validate_sweep.py` | Model codes and flags for binary8p2 to binary8p7, every BF16 input |
+| `run_sweep_check.sh` | `FPConvBlock` and `SegmentedFMAPipe` RTL of a sweep config, every format code, codes and flags |
+| `sweep_vectors.py` | Expected results for `run_sweep_check.sh` (not run directly) |
+| `tb_sweep_unit.cpp` | Verilator testbench for `run_sweep_check.sh` (not run directly) |
+
+To check the widest sweep config:
+
+```bash
+source env.sh
+~/venvs/gfloat/bin/python generators/saturn/models/validate_sweep.py
+make -C sims/verilator verilog CONFIG=P3109Sweep234567V256D128ShuttleConfig
+generators/saturn/models/run_sweep_check.sh P3109Sweep234567V256D128ShuttleConfig /tmp/p3109-sweep
+```
+
+Pass: `validate_sweep.py` ends with `TOTAL MISMATCHES: 0`. `run_sweep_check.sh`
+prints two `TOTAL MISMATCHES: 0` lines, one per unit.
+
+`run_sweep_check.sh` also takes `P3109V256D128ShuttleConfig`. That config has
+only binary8p4 and binary8p3, and reads operands with `p3109ToE5M3`.
+
+To synthesize the sweep configs, see `synth/README.md`.
