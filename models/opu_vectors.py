@@ -7,7 +7,8 @@ Writes opu.bin for tb_opu_cell.cpp, one 16-byte record per multiply-accumulate,
     u8 altfmt, u8 a, u8 b, u8 sa, u8 sb, 3 x u8 0, u32 c, u32 expect
 
 c is the FP32 accumulator before, expect after: c + (sa x a) x (sb x b),
-rounded once to FP32 with round-to-nearest-even, which the cell always uses.
+rounded once to FP32 with round-to-nearest-even, which the cell always uses
+(a zero result is +0 in a P3109 build).
 sa and sb are P3109 Binary8p1uf block scales (0 is zero, 255 is NaN, otherwise
 2^(code - 128)), applied exactly as P3109's BlockDecode does.
 
@@ -32,7 +33,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "benchmarks", "common-data-gen"))
 
 from gfloat import RoundMode  # noqa: E402
 from gfloat.formats import format_info_binary32 as FP32  # noqa: E402
-from gfloat_ref import FP8_STANDARDS  # noqa: E402
+from gfloat_ref import FP8_STANDARDS, binary32_result  # noqa: E402
 from fractions import Fraction  # noqa: E402
 from fma_ref import add, exact, mul, project  # noqa: E402
 
@@ -83,7 +84,7 @@ def records(args):
             if not scaled:
                 p = mul(exact(fi, a), exact(fi, b), RNE)
                 for c in FIXED_C + (near_c(rng, p),):
-                    want = project(FP32, add(p, exact(FP32, c), RNE), RNE)
+                    want = binary32_result(std, project(FP32, add(p, exact(FP32, c), RNE), RNE))
                     out += struct.pack("<BBBBBxxxII", altfmt, a, b, 128, 128, c, want)
                 continue
             p0 = mul(exact(fi, a), exact(fi, b), RNE)
@@ -95,7 +96,7 @@ def records(args):
             for i, (sa, sb) in enumerate(pairs):
                 p = mul(mul(scale(sa), exact(fi, a), RNE), mul(scale(sb), exact(fi, b), RNE), RNE)
                 c = (FIXED_C + (near_c(rng, p),))[(k * 6 + i) % (len(FIXED_C) + 1)]
-                want = project(FP32, add(p, exact(FP32, c), RNE), RNE)
+                want = binary32_result(std, project(FP32, add(p, exact(FP32, c), RNE), RNE))
                 out += struct.pack("<BBBBBxxxII", altfmt, a, b, sa, sb, c, want)
     return bytes(out)
 
