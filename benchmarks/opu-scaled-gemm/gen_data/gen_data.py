@@ -14,6 +14,10 @@ Both 8-bit formats of the build. Three tests:
         every OPFMACC.S evicts and refills (a stress test of the cache)
   gram  C = (sA x A)(sA x A)^T: A is both operands, so two of the four
         tiles read the same register as vs1 and vs2
+  gemm4 (--fp4) P3109 Binary4p2sf pairs, element-format code 6: each byte
+        holds steps k (bits 3:0) and k+1 (bits 7:4), each instruction adds
+        the exact dot product of a pair, rounded once; block 32, a zero
+        scale and one NaN element
 """
 import argparse
 import os
@@ -29,6 +33,10 @@ from gfloat import RoundMode  # noqa: E402
 from gfloat.formats import format_info_binary32 as FP32  # noqa: E402
 from gfloat_ref import FP8_STANDARDS, binary32_result  # noqa: E402
 from fma_ref import add, exact, mul, project  # noqa: E402
+from gfloat.formats import format_info_p3109  # noqa: E402
+from gfloat.types import Domain, Signedness  # noqa: E402
+
+FP4 = format_info_p3109(4, 2, Signedness.Signed, Domain.Finite)  # Binary4p2sf
 
 M, N, K, BLK = 64, 64, 96, 32
 RNE = RoundMode.TiesToEven
@@ -52,6 +60,37 @@ def reference(std, fi, a, b, sa, sb):
                 acc = binary32_result(std, project(FP32, add(p, exact(FP32, acc), RNE), RNE))
             c.append(acc)
     return c
+
+
+def reference4(std, a, b, sa, sb):
+    """FP4 pairs: per instruction kp, the exact sum over k = 2kp, 2kp+1 of
+    (sa a[k][i]) (sb b[k][j]), added to C and rounded once."""
+    c = []
+    for i in range(M):
+        for j in range(N):
+            acc = 0
+            for kp in range(K // 2):
+                blk = 2 * kp // BLK
+                p0, p1 = (mul(mul(scale(sa[blk][i]), exact(FP4, a[k][i]), RNE),
+                              mul(scale(sb[blk][j]), exact(FP4, b[k][j]), RNE), RNE)
+                          for k in (2 * kp, 2 * kp + 1))
+                p = add(p0, p1, RNE)  # exact
+                acc = binary32_result(std, project(FP32, add(p, exact(FP32, acc), RNE), RNE))
+            c.append(acc)
+    return c
+
+
+def arrays4(std):
+    rng = random.Random("gemm4")
+    finite = [c for c in range(16) if c != 8]
+    a = [[rng.choice(finite) for _ in range(M)] for _ in range(K)]
+    b = [[rng.choice(finite) for _ in range(N)] for _ in range(K)]
+    a[50][7] = 8      # one NaN element: row 7 is NaN from k = 50 on
+    sa, sb = scales(rng, M, K // BLK), scales(rng, N, K // BLK)
+    sa[1][5] = 0      # a zero scale: row 5 adds nothing in block 1
+    c = reference4(std, a, b, sa, sb)
+    pack = lambda x, n: [x[2 * kp][i] | x[2 * kp + 1][i] << 4 for kp in range(K // 2) for i in range(n)]
+    return pack(a, M), pack(b, N), sa, sb, c
 
 
 def scales(rng, n, blocks):
@@ -93,6 +132,7 @@ def emit(f, name, data, kind):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--std", choices=sorted(FP8_STANDARDS), default="p3109")
+    ap.add_argument("--fp4", action="store_true", help="also the FP4 test, for a config with opuFP4")
     ap.add_argument("output")
     args = ap.parse_args()
     jobs = [(args.std, t, f) for t in ("gemm", "evict", "gram") for f in (0, 1)]
@@ -111,3 +151,11 @@ if __name__ == "__main__":
                 emit(f, p + "sb", [x for row in sb for x in row], "byte")
             emit(f, p + "c", c, "word")
             f.write(f".global {p}out\n.balign 64\n{p}out:\n    .zero {4 * M * N}\n")
+        if args.fp4:
+            a4, b4, sa, sb, c = arrays4(args.std)
+            emit(f, "gemm4_a", a4, "byte")
+            emit(f, "gemm4_b", b4, "byte")
+            emit(f, "gemm4_sa", [x for row in sa for x in row], "byte")
+            emit(f, "gemm4_sb", [x for row in sb for x in row], "byte")
+            emit(f, "gemm4_c", c, "word")
+            f.write(f".global gemm4_out\n.balign 64\ngemm4_out:\n    .zero {4 * M * N}\n")

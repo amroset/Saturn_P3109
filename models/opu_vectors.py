@@ -1,10 +1,15 @@
 """Test vectors for the 8-bit multiply-accumulate of one OuterProductCell.
 
-    opu_vectors.py <outdir> <std: ocp | p3109 | p3109-finite>
+    opu_vectors.py <outdir> <std: ocp | p3109 | p3109-finite> [fp4]
 
 Writes opu.bin for tb_opu_cell.cpp, one 16-byte record per multiply-accumulate,
 
-    u8 altfmt, u8 a, u8 b, u8 sa, u8 sb, 3 x u8 0, u32 c, u32 expect
+    u8 fmt, u8 a, u8 b, u8 sa, u8 sb, 3 x u8 0, u32 c, u32 expect
+
+fmt is the element-format code: 0 and 1 are the build's two FP8 formats
+(altfmt), 6 is P3109 Binary4p2sf pairs (fp4, configs with opuFP4), where a
+and b each hold two FP4 values, step k in bits 3:0 and step k+1 in bits 7:4,
+and the product is the exact dot product a0*b0 + a1*b1.
 
 c is the FP32 accumulator before, expect after: c + (sa x a) x (sb x b),
 rounded once to FP32 with round-to-nearest-even, which the cell always uses
@@ -20,6 +25,7 @@ Scaled (OPFMACC.S): every (a, b) pair of both formats, each with six scale
 pairs: two from a list of edge codes, two random, and two that put the scaled
 product at FP32's overflow and underflow boundaries; each with one of the
 accumulators above.
+FP4 (fp4): every (a0, a1, b0, b1), unscaled and scaled as above.
 """
 import math
 import os
@@ -36,6 +42,11 @@ from gfloat.formats import format_info_binary32 as FP32  # noqa: E402
 from gfloat_ref import FP8_STANDARDS, binary32_result  # noqa: E402
 from fractions import Fraction  # noqa: E402
 from fma_ref import add, exact, mul, project  # noqa: E402
+from gfloat.formats import format_info_p3109  # noqa: E402
+from gfloat.types import Domain, Signedness  # noqa: E402
+
+FP4 = format_info_p3109(4, 2, Signedness.Signed, Domain.Finite)  # Binary4p2sf
+FMT_FP4 = 6
 
 RNE = RoundMode.TiesToEven
 FIXED_C = (0x00000000, 0x80000000, 0x3F800000, 0xBF800000, 0x7F7FFFFF,
@@ -101,10 +112,46 @@ def records(args):
     return bytes(out)
 
 
+def records4(args):
+    """FP4 pairs: a = a0 | a1 << 4, b = b0 | b1 << 4, every (a0, a1, b0, b1)."""
+    std, a0, scaled = args
+    rng = random.Random(FMT_FP4 << 9 | scaled << 8 | a0)
+    out = bytearray()
+    for a1 in range(16):
+        for b in range(256):
+            a, b0, b1 = a0 | a1 << 4, b & 15, b >> 4
+            def dot(sa, sb):
+                x0, x1 = mul(scale(sa), exact(FP4, a0), RNE), mul(scale(sa), exact(FP4, a1), RNE)
+                y0, y1 = mul(scale(sb), exact(FP4, b0), RNE), mul(scale(sb), exact(FP4, b1), RNE)
+                return add(mul(x0, y0, RNE), mul(x1, y1, RNE), RNE)  # exact
+            if not scaled:
+                p = dot(128, 128)
+                for c in FIXED_C + (near_c(rng, p),):
+                    want = binary32_result(std, project(FP32, add(p, exact(FP32, c), RNE), RNE))
+                    out += struct.pack("<BBBBBxxxII", FMT_FP4, a, b, 128, 128, c, want)
+                continue
+            p0 = dot(128, 128)
+            k = a << 8 | b
+            pairs = [EDGE_S[(2 * k) % len(EDGE_S)], EDGE_S[(2 * k + 1) % len(EDGE_S)],
+                     (rng.randint(0, 255), rng.randint(0, 255)),
+                     (rng.randint(0, 255), rng.randint(0, 255)),
+                     boundary_scales(rng, p0, 127), boundary_scales(rng, p0, -149)]
+            for i, (sa, sb) in enumerate(pairs):
+                p = dot(sa, sb)
+                c = (FIXED_C + (near_c(rng, p),))[(k * 6 + i) % (len(FIXED_C) + 1)]
+                want = binary32_result(std, project(FP32, add(p, exact(FP32, c), RNE), RNE))
+                out += struct.pack("<BBBBBxxxII", FMT_FP4, a, b, sa, sb, c, want)
+    return bytes(out)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[2] not in FP8_STANDARDS:
-        sys.exit(f"usage: opu_vectors.py <outdir> <{' | '.join(FP8_STANDARDS)}>")
+    fp4 = sys.argv[3:] == ["fp4"]
+    if len(sys.argv) not in (3, 4) or sys.argv[2] not in FP8_STANDARDS or (len(sys.argv) == 4 and not fp4):
+        sys.exit(f"usage: opu_vectors.py <outdir> <{' | '.join(FP8_STANDARDS)}> [fp4]")
     with Pool() as pool, open(os.path.join(sys.argv[1], "opu.bin"), "wb") as f:
         for chunk in pool.map(records, [(sys.argv[2], f, a_hi, scaled)
                                         for scaled in (0, 1) for f in (0, 1) for a_hi in range(16)]):
             f.write(chunk)
+        if fp4:
+            for chunk in pool.map(records4, [(sys.argv[2], a0, scaled) for scaled in (0, 1) for a0 in range(16)]):
+                f.write(chunk)

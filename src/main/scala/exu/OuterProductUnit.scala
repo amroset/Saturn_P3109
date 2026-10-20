@@ -54,6 +54,7 @@ class OuterProductCell(implicit p: Parameters) extends CoreModule()(p) with HasO
     // Contol Signals
     val altfmt = if (useMxOPU) Some(Input(Bool())) else None // alternate format for outer product
     val fp8 = if (useMxOPU) Some(Input(Bool())) else None // FP8 format for outer product
+    val fp4 = if (vParams.opuFP4) Some(Input(Bool())) else None // Binary4p2sf pairs (element-format code 6)
     val mrf_idx = Input(UInt(cellRegIdxBits.W)) // Index for µarch register to write
     val macc = Input(Bool())
     val mvin = Input(Bool())
@@ -92,30 +93,57 @@ class OuterProductCell(implicit p: Parameters) extends CoreModule()(p) with HasO
     // exact a*b + c is rounded once, to FP32. With both scales 2^0 this is the
     // unscaled OPFMACC: the same exact value, rounded once.
     val wide = FType(FType.S.exp + 2, FType.S.sig)
-    def scaleRec(x: UInt, s: UInt, t: FType): UInt = {
+    // div16 also subtracts 4 from the exponent (the FP4 path's /16); nan
+    // forces a NaN result (an FP4 NaN, which the integer path cannot carry)
+    def scaleRec(x: UInt, s: UInt, t: FType, div16: Bool = false.B, nan: Bool = false.B): UInt = {
       val sign  = x(t.exp + t.sig)
       val exp   = x(t.exp + t.sig - 1, t.sig - 1)
       val fract = x(t.sig - 2, 0)
       val isZero    = exp(t.exp, t.exp - 2) === 0.U
       val isSpecial = exp(t.exp, t.exp - 1).andR // Inf or NaN
       val qnan   = Cat(0.U(1.W), 7.U(3.W), 0.U((t.exp - 2).W), 1.U(1.W), 0.U((t.sig - 2).W))
-      val scaled = Cat(sign, (exp.zext + (s.zext - 128.S))(t.exp, 0), fract)
-      Mux(s === 255.U || (s === 0.U && isSpecial), qnan,  // NaN scale; 0 * Inf, 0 * NaN
-        Mux(s === 0.U, Cat(sign, 0.U((t.exp + t.sig).W)), // zero scale
+      val scaled = Cat(sign, (exp.zext + (s.zext - Mux(div16, 132.S, 128.S)))(t.exp, 0), fract)
+      Mux(nan || s === 255.U || (s === 0.U && isSpecial), qnan, // NaN scale; 0 * Inf, 0 * NaN
+        Mux(s === 0.U, Cat(sign, 0.U((t.exp + t.sig).W)),       // zero scale
           Mux(isZero || isSpecial, x, scaled)))
     }
     val f8a = MXFType.E5M3.recode(read8(io.in_l.asUInt))
     val f8b = MXFType.E5M3.recode(read8(io.in_t.asUInt))
-    val f8aw = scaleRec(widen(f8a, MXFType.E5M3, wide, f8macc), io.scale_l, wide)
-    val f8bw = scaleRec(widen(f8b, MXFType.E5M3, wide, f8macc), io.scale_t, wide)
+    val f8aw = widen(f8a, MXFType.E5M3, wide, f8macc)
+    val f8bw = widen(f8b, MXFType.E5M3, wide, f8macc)
     val latency = 2
     val fma = Module(new MulAddRecFNPipeUnrounded(latency, wide.exp, wide.sig))
     fma.io.validin := f8macc
     fma.io.op := 0.U // FMA
     fma.io.roundingMode := hardfloat.consts.round_near_even
     fma.io.detectTininess := hardfloat.consts.tininess_afterRounding
-    fma.io.a := f8aw
-    fma.io.b := f8bw
+    // FP4 (opuFP4, element-format code 6): each byte holds two P3109
+    // Binary4p2sf values, step k in bits 3:0 and step k+1 in bits 7:4. Times 4,
+    // every value is an integer of magnitude at most 12 (code 8 is NaN), so
+    // a0*b0 + a1*b1 is exactly an integer of at most 288, 16 times the dot
+    // product. It takes a's place before the scaling (exponent -4 for the /16)
+    // and b = 1 takes b's, so the cell computes c + sA*sB*(a0*b0 + a1*b1),
+    // rounded once, through the same scaleRec, FMA and rounding as FP8.
+    val fp4 = io.fp4.getOrElse(false.B)
+    val (ua, ub, nan4) = if (vParams.opuFP4) {
+      def int4(c: UInt): SInt = {
+        val mag = VecInit(Seq(0, 1, 2, 3, 4, 6, 8, 12).map(_.U(4.W)))(c(2, 0))
+        Mux(c(3), -mag.zext, mag.zext)
+      }
+      val l = io.in_l.asUInt
+      val t = io.in_t.asUInt
+      val nan = Seq(l(3, 0), l(7, 4), t(3, 0), t(7, 4)).map(_ === 8.U).reduce(_ || _)
+      val dot16 = int4(l(3, 0)) * int4(t(3, 0)) +& int4(l(7, 4)) * int4(t(7, 4))
+      val i2f = Module(new hardfloat.INToRecFN(dot16.getWidth, wide.exp, wide.sig))
+      i2f.io.signedIn := true.B
+      i2f.io.in := dot16.asUInt
+      i2f.io.roundingMode := hardfloat.consts.round_near_even // exact: at most 9 bits
+      i2f.io.detectTininess := hardfloat.consts.tininess_afterRounding
+      val one = wide.recode((((BigInt(1) << (wide.exp - 1)) - 1) << (wide.sig - 1)).U(wide.ieeeWidth.W))
+      (Mux(fp4, i2f.io.out, f8aw), Mux(fp4, one, f8bw), fp4 && nan)
+    } else (f8aw, f8bw, false.B)
+    fma.io.a := scaleRec(ua, io.scale_l, wide, fp4, nan4)
+    fma.io.b := scaleRec(ub, io.scale_t, wide)
     fma.io.c := widen(FType.S.recode(regs(io.mrf_idx)), FType.S, wide, f8macc)
     val round = Module(new hardfloat.RoundAnyRawFNToRecFN(wide.exp, wide.sig + 2, FType.S.exp, FType.S.sig, 0))
     round.io.invalidExc := fma.io.invalidExc
@@ -195,6 +223,7 @@ class OuterProductCluster(implicit p : Parameters) extends CoreModule()(p) with 
     val mvin_bcast = Input(Bool())
     val altfmt = if (useMxOPU) Some(Input(Bool())) else None // alternate format for outer product
     val fp8 = if (useMxOPU) Some(Input(Bool())) else None // FP8 format for outer product
+    val fp4 = if (vParams.opuFP4) Some(Input(Bool())) else None // Binary4p2sf pairs
     val mvin_col = Input(Bool())
     val mvin_bcast_col = Input(Bool())
   })
@@ -216,6 +245,7 @@ class OuterProductCluster(implicit p : Parameters) extends CoreModule()(p) with 
         cell.io.altfmt.get := io.altfmt.get
         cell.io.fp8.get := io.fp8.get
       }
+      cell.io.fp4.foreach(_ := io.fp4.get)
       cell.io.macc := io.macc
       cell.io.mvin_bcast_col := io.mvin_bcast_col
       cell_outs(i)(j) := cell.io.out.asUInt
@@ -279,6 +309,7 @@ class OuterProductControl(implicit p: Parameters) extends CoreBundle()(p) with H
   val mvin_bcast = Vec(yDim, Bool())
   val altfmt     = if (useMxOPU) Some(Vec(yDim, Bool())) else None // alternate format for outer product
   val fp8        = if (useMxOPU) Some(Vec(yDim, Bool())) else None // FP8 format for outer product
+  val fp4        = if (vParams.opuFP4) Some(Bool()) else None // Binary4p2sf pairs (element-format code 6)
   //mvin_col broadcasts vertically
   val mvin_bcast_col = Vec(xDim, Bool())
   val mvin_col   = Vec(xDim, Bool()) // column write
@@ -342,6 +373,7 @@ class OuterProductUnit(implicit p: Parameters) extends CoreModule()(p) with HasO
         cluster.io.altfmt.get := io.op.altfmt.get(i)
         cluster.io.fp8.get := io.op.fp8.get(i)
       }
+      cluster.io.fp4.foreach(_ := io.op.fp4.get)
     }
 
     clusters(0)(j).io.in_pipe := 0.U

@@ -11,6 +11,9 @@
 //          four-entry cache, so every OPFMACC.S evicts entries and refills
 //          them. A wrong eviction or a stale entry would apply the other
 //          set's scales and change the results.
+//   gemm4  (-DFP4, configs with opuFP4) P3109 Binary4p2sf pairs, element-
+//          format code 6: each byte holds steps k (bits 3:0) and k+1 (bits
+//          7:4), so one OPFMACC.S does two k steps; a zero scale, a NaN.
 //   gram   Tests vs1 = vs2. C = (sA x A)(sA x A)^T, so tiles m0 and m3 use
 //          one register as both operands, and the cache fills that scale
 //          register through both read ports in the same cycle.
@@ -25,7 +28,7 @@
 #define BLK 32
 
 // Arrays defined in data.S, which gen_data.py writes; the linker resolves
-// them by name. Per test (gemm, alt, gram) and format (0, 1: altfmt):
+// them by name. Per test (gemm, evict, gram) and format (0, 1: altfmt):
 // _a, _b inputs, _sa, _sb their scales, _c the expected result from
 // gen_data.py's exact reference, _out where the kernel stores its result.
 #define DATA(t) extern uint8_t t##_a[], t##_b[], t##_sa[], t##_sb[]; extern uint32_t t##_c[], t##_out[];
@@ -118,30 +121,56 @@ static void gram(const uint8_t *a, const uint8_t *sa, uint32_t *c, int altfmt) {
     finish(c);
 }
 
-static int check(const char *test, const uint32_t *out, const uint32_t *ref, int altfmt) {
+#ifdef FP4
+extern uint8_t gemm4_a[], gemm4_b[], gemm4_sa[], gemm4_sb[];
+extern uint32_t gemm4_c[], gemm4_out[];
+
+// a and b hold K/2 rows of packed k pairs; scales per block of 32 k (16 pairs)
+static void gemm4(const uint8_t *a, const uint8_t *b, const uint8_t *sa, const uint8_t *sb, uint32_t *c) {
+    start(0);
+    // e8 m1 with element-format code 6 (vtype[10:9] = 11): FP4 pairs
+    asm volatile(".insn i 0x57, 0x7, x0, %0, 0x600" : : "r"(32));
+    for (int blk = 0; blk < K / BLK; blk++) {
+        LD("v3", &sa[M * blk]);
+        LD("v5", &sa[M * blk + 32]);
+        LD("v7", &sb[N * blk]);
+        LD("v9", &sb[N * blk + 32]);
+        for (int kp = blk * BLK / 2; kp < (blk + 1) * BLK / 2; kp++) {
+            K22(v2, v4, v6, v8, kp)
+        }
+    }
+    finish(c);
+}
+#endif
+
+static int check(const char *test, const uint32_t *out, const uint32_t *ref, const char *fmt) {
     int bad = 0;
     for (int i = 0; i < M * N; i++)
         if (out[i] != ref[i] && bad++ < 4)
-            printf("MISMATCH %s altfmt %d: m=%d n=%d got %08x want %08x\n",
-                   test, altfmt, i / N, i % N, out[i], ref[i]);
-    printf("%s altfmt %d: %d of %d differ\n", test, altfmt, bad, M * N);
+            printf("MISMATCH %s %s: m=%d n=%d got %08x want %08x\n",
+                   test, fmt, i / N, i % N, out[i], ref[i]);
+    printf("%s %s: %d of %d differ\n", test, fmt, bad, M * N);
     return bad != 0;
 }
 
 int main(void) {
     int failed = 0;
     gemm(gemm0_a, gemm0_b, gemm0_sa, gemm0_sb, gemm0_out, 0);
-    failed |= check("gemm", gemm0_out, gemm0_c, 0);
+    failed |= check("gemm", gemm0_out, gemm0_c, "altfmt 0");
     gemm(gemm1_a, gemm1_b, gemm1_sa, gemm1_sb, gemm1_out, 1);
-    failed |= check("gemm", gemm1_out, gemm1_c, 1);
+    failed |= check("gemm", gemm1_out, gemm1_c, "altfmt 1");
     evict(evict0_a, evict0_b, evict0_sa, evict0_sb, evict0_out, 0);
-    failed |= check("evict", evict0_out, evict0_c, 0);
+    failed |= check("evict", evict0_out, evict0_c, "altfmt 0");
     evict(evict1_a, evict1_b, evict1_sa, evict1_sb, evict1_out, 1);
-    failed |= check("evict", evict1_out, evict1_c, 1);
+    failed |= check("evict", evict1_out, evict1_c, "altfmt 1");
     gram(gram0_a, gram0_sa, gram0_out, 0);
-    failed |= check("gram", gram0_out, gram0_c, 0);
+    failed |= check("gram", gram0_out, gram0_c, "altfmt 0");
     gram(gram1_a, gram1_sa, gram1_out, 1);
-    failed |= check("gram", gram1_out, gram1_c, 1);
+    failed |= check("gram", gram1_out, gram1_c, "altfmt 1");
+#ifdef FP4
+    gemm4(gemm4_a, gemm4_b, gemm4_sa, gemm4_sb, gemm4_out);
+    failed |= check("gemm4", gemm4_out, gemm4_c, "FP4");
+#endif
     printf(failed ? "FAILED\n" : "passed\n");
     return failed;
 }
