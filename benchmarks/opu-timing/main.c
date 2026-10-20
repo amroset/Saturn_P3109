@@ -1,6 +1,7 @@
 // Steady-state timing of OPU instruction patterns, for the block-scaling
 // ISA design. Build with -DBASIC for the single-pattern measurements A-G,
-// -DRULES=1..3 for the pairing rules, -DRULES=4 for the real OPFMACC.S;
+// -DRULES=1..3 for the pairing rules, -DRULES=4 for the real OPFMACC.S,
+// -DRULES=5 for OPFMACC.S with double-buffered data;
 // by default it times the scale-supply strategies H, P, S, R, W. Each pattern
 // runs once to warm up, then for 1, 2, 3, 4, 6 and 8 times a base count of
 // iterations, twice each; fit.py fits cycles = a + b * iterations, so b is the
@@ -192,6 +193,19 @@ TIMED(pat_ra2, K22SSL(v2, v4, v6, v8, v11) K22SSL(v2, v4, v6, v8, v13) K22SSL(v2
 // HE2: the same alternation, unscaled
 TIMED(pat_he2, X32(K22G(v2, v4, v6, v8)) X32(K22G(v10, v12, v14, v16)))
 
+// ---- Double-buffered data (-DRULES=5): two data register sets on alternate
+// k steps, so one set loads while the other computes. Under rule A each set
+// needs its own copy of the block's scales: eight scale registers, more than
+// a four-entry scale cache holds.
+#define REP16(x) X8(x) X8(x)
+// HD: unscaled
+TIMED(pat_hd, REP16(K22G(v2, v4, v6, v8) K22G(v10, v12, v14, v16)))
+// RD: OPFMACC.S, the block's scales loaded at its start, twice (v3..v9 and
+// v11..v17 hold the same scales)
+TIMED(pat_rd, LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
+              LD("v11", s0); LD("v13", s0); LD("v15", s1); LD("v17", s1);
+              REP16(K22SS(v2, v4, v6, v8) K22SS(v10, v12, v14, v16)))
+
 static const unsigned long mult[] = {1, 2, 3, 4, 6, 8};
 
 // Prints "tag iterations cycles" lines for fit.py
@@ -233,6 +247,12 @@ int main(void) {
     sweep("RA", "OPFMACC.S, scale loads at block start", "32-k block", pat_ra, 8);
     sweep("HE2", "unscaled, alternating sets", "2 blocks", pat_he2, 4);
     sweep("RA2", "OPFMACC.S, alternating sets, loads spread", "2 blocks", pat_ra2, 4);
+    return 0;
+#elif RULES == 5
+    sweep("HE", "unscaled, single-buffered data", "32-k block", pat_he, 8);
+    sweep("RA", "OPFMACC.S, single-buffered, scale loads at block start", "32-k block", pat_ra, 8);
+    sweep("HD", "unscaled, double-buffered data", "32-k block", pat_hd, 8);
+    sweep("RD", "OPFMACC.S, double-buffered data, 8 scale registers", "32-k block", pat_rd, 8);
     return 0;
 #endif
 #ifdef BASIC
