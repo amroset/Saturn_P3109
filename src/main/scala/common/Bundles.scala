@@ -81,6 +81,8 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   def writes_frf = !vmu && (funct3 === OPFVV)
   def sew = vconfig.vtype.vsew
   def altfmt = vconfig.vtype.altfmt
+  // element-format code, fmt_hi ## altfmt (rocket VType, VTypeFmtBits wide above altfmt)
+  def vfmt = Cat(vconfig.vtype.fmt_hi, vconfig.vtype.altfmt)
 
   def isOpi = funct3.isOneOf(OPIVV, OPIVI, OPIVX)
   def isOpm = funct3.isOneOf(OPMVV, OPMVX)

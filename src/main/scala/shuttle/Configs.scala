@@ -18,6 +18,9 @@ class WithShuttleVectorUnit(
   location: HierarchicalLocation = InSubsystem,
   mLen: Option[Int] = None
 ) extends Config((site, here, up) => {
+  // FP4 in the OPU is selected by element-format code 6, which needs two vtype
+  // bits above altfmt
+  case VTypeFmtBits => if (params.opuFP4) 2 else up(VTypeFmtBits, site)
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: ShuttleTileAttachParams => {
       val buildVector = cores.map(_.contains(tp.tileParams.tileId)).getOrElse(true)

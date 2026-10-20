@@ -57,6 +57,7 @@ bmarks = \
 	opu-fp8-gemm \
 	opu-timing \
 	opu-scaled-gemm \
+	vtype-fmt \
 	opu-gemm \
 	opu-m4-gemm \
 	opu-m4-memcopy \

@@ -118,6 +118,12 @@ object VectorParams {
     p3109 = Some(P3109Formats(p4 = P3109Domain.Finite, p3 = P3109Domain.Finite))
   )
 
+  // opuP3109FP4Params:
+  // Same as opuP3109Params, with P3109 Binary4p2sf (FP4) in the OPU
+  def opuP3109FP4Params = opuP3109Params.copy(
+    opuFP4 = true
+  )
+
   // multiFMAParams:
   // Provides a second sequencer and set of functional units for FMA operations
   def multiFMAParams = genParams.copy(
@@ -449,6 +455,7 @@ case class VectorParams(
   useMxConversion: Boolean = false,
   p3109: Option[P3109Formats] = None, // IEEE P3109 in place of OCP FP8 (FPConv, FMA and OPU)
   useMxOPU: Boolean = false,
+  opuFP4: Boolean = false, // P3109 Binary4p2sf in the OPU, as element-format code 6 (VType.fmt_hi)
 
   // for comparisons only
   hazardingMultiplier: Int = 0,
@@ -494,6 +501,7 @@ case class VectorParams(
   require(mLen >= 64 && mLen <= 512, "mLen must be >= 64 and <= 512")
   require((mLen & (mLen - 1)) == 0, "mLen must be power of 2")
   require(p3109.isEmpty || useMxConversion, "P3109 needs useMxConversion")
+  require(!opuFP4 || (useMxOPU && p3109.isDefined), "opuFP4 needs useMxOPU and P3109")
   // of the FMA pipes with 8-bit operands, only the segmented one reads P3109;
   // the tandem one would read them as OCP FP8
   require(p3109.isEmpty || !useMxFPFMA || useSegmentedFPFMA, "P3109 needs the segmented vector FMA")
