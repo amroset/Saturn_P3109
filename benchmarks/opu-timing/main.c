@@ -1,7 +1,8 @@
 // Steady-state timing of OPU instruction patterns, for the block-scaling
 // ISA design. Build with -DBASIC for the single-pattern measurements A-G,
 // -DRULES=1..3 for the pairing rules, -DRULES=4 for the real OPFMACC.S,
-// -DRULES=5 for OPFMACC.S with double-buffered data;
+// -DRULES=5 for OPFMACC.S with double-buffered data, -DRULES=6 for FP4
+// (configs with opuFP4);
 // by default it times the scale-supply strategies H, P, S, R, W. Each pattern
 // runs once to warm up, then for 1, 2, 3, 4, 6 and 8 times a base count of
 // iterations, twice each; fit.py fits cycles = a + b * iterations, so b is the
@@ -206,6 +207,19 @@ TIMED(pat_rd, LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
               LD("v11", s0); LD("v13", s0); LD("v15", s1); LD("v17", s1);
               REP16(K22SS(v2, v4, v6, v8) K22SS(v10, v12, v14, v16)))
 
+// ---- FP4 (-DRULES=6, configs with opuFP4): element-format code 6 holds two
+// k steps per byte, so a 32-k block is 16 k22 steps instead of 32. Each block
+// starts with its vsetvli, since drain() resets vtype; the FP8 patterns get
+// the same vsetvli, so the format is the only difference. The data values do
+// not affect the timing.
+#define SETFP8 asm volatile("vsetvli x0, %0, e8, m1, ta, ma" : : "r"(32));
+#define SETFP4 asm volatile(".insn i 0x57, 0x7, x0, %0, 0x600" : : "r"(32)); // e8 m1, code 6
+#define SCALES LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
+TIMED(pat_he8, SETFP8 X32(K22G(v2, v4, v6, v8)))
+TIMED(pat_he4, SETFP4 REP16(K22G(v2, v4, v6, v8)))
+TIMED(pat_ra8, SETFP8 SCALES X32(K22SS(v2, v4, v6, v8)))
+TIMED(pat_ra4, SETFP4 SCALES REP16(K22SS(v2, v4, v6, v8)))
+
 static const unsigned long mult[] = {1, 2, 3, 4, 6, 8};
 
 // Prints "tag iterations cycles" lines for fit.py
@@ -253,6 +267,12 @@ int main(void) {
     sweep("RA", "OPFMACC.S, single-buffered, scale loads at block start", "32-k block", pat_ra, 8);
     sweep("HD", "unscaled, double-buffered data", "32-k block", pat_hd, 8);
     sweep("RD", "OPFMACC.S, double-buffered data, 8 scale registers", "32-k block", pat_rd, 8);
+    return 0;
+#elif RULES == 6
+    sweep("HE", "unscaled, FP8", "32-k block", pat_he8, 8);
+    sweep("HE4", "unscaled, FP4 pairs", "32-k block", pat_he4, 8);
+    sweep("RA", "OPFMACC.S, FP8, scale loads at block start", "32-k block", pat_ra8, 8);
+    sweep("RA4", "OPFMACC.S, FP4 pairs, scale loads at block start", "32-k block", pat_ra4, 8);
     return 0;
 #endif
 #ifdef BASIC

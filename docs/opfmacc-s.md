@@ -35,6 +35,7 @@ With `R = VLEN/8` (32 at VLEN 256):
 As for `OPFMACC`:
 
 - `vtype.altfmt` selects the format of `a` and `b`: 0 is binary8p4 and 1 is binary8p3 in a P3109 build; 0 is E4M3 and 1 is E5M2 in an OCP build.
+- In configs with `opuFP4`, element-format code 6 selects pairs of 4-bit values instead (see [FP4 pairs](#fp4-pairs-element-format-code-6)).
 - `vtype` must have SEW = 8 and LMUL = 1. Other settings are reserved.
 - `vl` is ignored: the whole tile is updated.
 
@@ -81,6 +82,33 @@ With both scales 2^0 (code 128), `OPFMACC.S` computes exactly what `OPFMACC` com
 - `OPFMACC.S` reads four vector registers (`vs1`, `vs1+1`, `vs2`, `vs2+1`). Ordering with other instructions follows the usual program-order rules for vector register sources.
 - `v0`/`v1` may hold an operand, since the instruction is unmasked. A masked form would exclude this pair.
 
+## FP4 pairs (element-format code 6)
+
+Configs with `opuFP4` (a P3109 build) add P3109 Binary4p2sf: 4-bit, signed,
+finite, precision 2. Each byte of `vs1` and `vs2` then holds two values, step
+k in bits 3:0 and step k+1 in bits 7:4, so one instruction performs two k steps:
+
+```
+for i in 0..R-1, j in 0..R-1:
+    d = a0[i] × b0[j] + a1[i] × b1[j]                       # exact
+    C[i][j] = round(C[i][j] + decode(sA[i]) × decode(sB[j]) × d)
+```
+
+The scale registers are unchanged, so both steps share the scales. Rounding
+and special values follow [Operation](#operation): one rounding per
+instruction, and a NaN in any of the four values gives NaN. Unscaled
+`OPFMACC` with code 6 is the same with both scales 2^0.
+
+| Code | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| Value | 0 | 0.25 | 0.5 | 0.75 | 1 | 1.5 | 2 | 3 | NaN |
+
+Codes 9 to 15 are the negatives of codes 1 to 7: bit 3 is the sign.
+
+- **Setting the code.** The element-format code is `vtype[10:9] ## vtype.altfmt`: 0 and 1 are the 8-bit formats above, 6 is FP4 pairs, and the other codes are reserved. Bits 10:9 exist only in `opuFP4` configs (rocket-chip's `VTypeFmtBits` = 2); elsewhere they make `vtype` illegal (`vill`), as RVV specifies for an unsupported `vtype`. `vsetivli`'s 10-bit immediate cannot reach bit 10, so use `vsetvli` (`zimm` 0x600 for e8, m1, code 6) or `vsetvl`.
+- **Block size.** B must be even: a block's 2 × (B/2) steps fill B/2 instructions. An odd K is padded with a zero step.
+- **Accuracy.** The κ table under [Relation to IEEE P3109](#relation-to-ieee-p3109) applies with B/2 instructions in place of B, each p_k the exact pair sum `d`.
+
 ## Use with block-scaled formats
 
 - **Block size.** Each instruction is one step k. Software reloads `vs1+1` and `vs2+1` every B steps, so any block size B works. The hardware does not see B.
@@ -115,9 +143,11 @@ None of this is architectural:
   1. It widens `a`, `b` and the accumulator to a recoded format with a 10-bit exponent, where a scaled operand cannot overflow.
   2. It adds the scales to the exponents of `a` and `b`.
   3. It rounds the unrounded `a × b + c` once, to binary32.
+  - With `opuFP4`, the cell also forms `a0·b0 + a1·b1` exactly as an integer (each Binary4p2sf value times 4 is an integer of magnitude at most 12), converts it to the wide format, and uses it as `a` with `b` = 1, before step 2. The scaling, the FMA and the rounding are shared with the 8-bit path.
 - **Cost, measured on the 2×2 kernel.**
   - `OPFMACC.S` itself adds no cycles over `OPFMACC`.
   - Reloading the scales costs +1.0% to +2.9% per 32-step block.
   - +3.9% OPU area in Sky130 synthesis.
   - The OPU's critical path stays below the vector FMA's.
-- **Tests.** `models/run_opu_check.sh` checks one cell against an exact reference: 2,228,224 multiply-accumulates, 786,432 of them scaled. `benchmarks/opu-scaled-gemm` checks three 64×64×96 scaled GEMMs bit for bit, on the P3109, P3109-finite and OCP configs: block reloads, scale-cache eviction on every instruction, and `vs1 = vs2`.
+  - FP4 pairs: 272 cycles per 32-step block unscaled and 288 with the scale reloads, against 544 and 560 for FP8 (`benchmarks/opu-timing`, `-DRULES=6`). The scale reloads take the same 16 cycles, so they are 5.9% of an FP4 block. FP4 adds 7.0% to the cell's area, and its integer front end lengthens the cell's path from 11.3 to 14.9 ns, still below the vector FMA's.
+- **Tests.** `models/run_opu_check.sh` checks one cell against an exact reference: 2,228,224 multiply-accumulates, 786,432 of them scaled. `benchmarks/opu-scaled-gemm` checks three 64×64×96 scaled GEMMs bit for bit, on the P3109, P3109-finite and OCP configs: block reloads, scale-cache eviction on every instruction, and `vs1 = vs2`. On the `opuFP4` config, the cell check adds 1,114,112 FP4 multiply-accumulates (every `a0, a1, b0, b1`, unscaled and with six scale pairs), and `opu-scaled-gemm -DFP4` adds a 64×64×96 FP4 GEMM with a NaN element and a zero scale.
