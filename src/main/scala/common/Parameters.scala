@@ -74,8 +74,9 @@ object VectorParams {
   )
 
   // p3109BlockParams:
-  // Same as p3109Params, with block scale factors in the conversion unit.
-  // Every lane gets scale 2^0 until the ISA can deliver one.
+  // Same as p3109Params, with scaled mode (vtype bit 11, VTypeFmtBits = 3): in
+  // FPConv and the FMA, an 8-bit operand in vN is a block whose scales are in
+  // vN+1, one Binary8p1uf byte per element (docs/scaled-mode.md).
   def p3109BlockParams = p3109Params.copy(
     p3109 = Some(P3109Formats(block = true))
   )
@@ -392,7 +393,7 @@ object P3109Domain {
 case class P3109Formats(
   p4: P3109Domain = P3109Domain.Extended,
   p3: P3109Domain = P3109Domain.Extended,
-  block: Boolean = false, // Block scale factors in FPConv
+  block: Boolean = false, // Scaled mode in FPConv and the FMA (vtype bit 11)
   genericReader: Boolean = false,
   extra: Seq[Int] = Nil
 ) {
@@ -505,6 +506,13 @@ case class VectorParams(
   // of the FMA pipes with 8-bit operands, only the segmented one reads P3109;
   // the tandem one would read them as OCP FP8
   require(p3109.isEmpty || !useMxFPFMA || useSegmentedFPFMA, "P3109 needs the segmented vector FMA")
+  require(!scaledMode || useMxFPFMA, "scaled mode needs the 8-bit FMA")
+
+  // Scaled mode (P3109Formats.block): vtype bit 11 marks an instruction as
+  // scaled, so vtype needs three bits above altfmt (bits 10:9 being the
+  // element-format code's upper bits, used by opuFP4).
+  def scaledMode = p3109.exists(_.block)
+  def vtypeFmtBits = if (scaledMode) 3 else if (opuFP4) 2 else 0
 }
 
 case object VectorParamsKey extends Field[VectorParams]

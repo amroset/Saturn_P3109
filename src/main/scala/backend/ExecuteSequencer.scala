@@ -20,6 +20,10 @@ class ExecuteSequencerIO(maxDepth: Int, nFUs: Int)(implicit p: Parameters) exten
 
   val acc_valid = Input(Bool())
   val acc_ready = Output(Bool())
+
+  // Scaled mode: this cycle's reads are the scale registers' element groups,
+  // to be buffered (Backend) until the data issues
+  val scale_fire = Output(Bool())
 }
 
 class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: Int, nFUs: Int)(implicit p: Parameters) extends Sequencer[ExecuteMicroOp]()(p) {
@@ -66,6 +70,10 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   val eidx      = Reg(UInt(log2Ceil(maxVLMax).W))
   val acc_fold  = Reg(Bool())
   val acc_fold_id = Reg(UInt(log2Ceil(dLenB).W))
+  // Scaled mode: the scale registers (read hazards), and whether the scales
+  // of the next issue are already buffered
+  val rsc_mask  = if (vParams.scaledMode) Reg(UInt(egsTotal.W)) else 0.U(egsTotal.W)
+  val sc_ready  = Reg(Bool())
 
   val compress = inst.opmf6 === OPMFunct6.compress && usesCompress.B
   val acc_copy = (vd_eew === 3.U && (dLenB == 8).B) || elementwise
@@ -138,6 +146,12 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
     rvs2_mask     := Mux(dis_inst.renv2             , FillInterleaved(egsPerVReg, dis_vs2_arch_mask), 0.U)
     rvd_mask      := Mux(dis_inst.renvd && usesRvd.B, FillInterleaved(egsPerVReg, dis_vd_arch_mask), 0.U)
     rvm_mask      := Mux(dis_inst.renvm             , ~(0.U(egsPerVReg.W)), 0.U)
+    if (vParams.scaledMode) rsc_mask := Seq(
+      (dis_inst.scaled_vs1, dis_inst.rs1),
+      (dis_inst.scaled_vs2, dis_inst.rs2),
+      (dis_inst.scaled_vd , dis_inst.rd)
+    ).map { case (en, r) => Mux(en, FillInterleaved(egsPerVReg, get_arch_mask(r | 1.U, 0.U)), 0.U) }.reduce(_|_)
+    sc_ready      := false.B
     head          := true.B
     acc_fold      := false.B
     acc_fold_id   := 0.U
@@ -190,18 +204,29 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   } .elsewhen (io.iss.fire) {
     valid := !tail
     head := false.B
+    sc_ready := false.B // the next issue reads its own scales
   }
 
   io.vat := inst.vat
   io.seq_hazard.valid := valid
-  io.seq_hazard.bits.rintent := hazardMultiply(rvs1_mask | rvs2_mask | rvd_mask | rvm_mask)
+  io.seq_hazard.bits.rintent := hazardMultiply(rvs1_mask | rvs2_mask | rvd_mask | rvm_mask | rsc_mask)
   io.seq_hazard.bits.wintent := hazardMultiply(wvd_mask)
   io.seq_hazard.bits.vat := inst.vat
 
-  val vs1_read_oh = Mux(renv1   , UIntToOH(io.rvs1.bits.eg), 0.U)
-  val vs2_read_oh = Mux(renv2   , UIntToOH(io.rvs2.bits.eg), 0.U)
-  val vd_read_oh  = Mux(renvd   , UIntToOH(io.rvd.bits.eg ), 0.U)
-  val vm_read_oh  = Mux(renvm   , UIntToOH(io.rvm.bits.eg ), 0.U)
+  // Scaled mode, step 1: before each issue of a scaled instruction, one cycle
+  // reads its scale registers' element groups (rs1|1, rs2|1, rd|1, at the
+  // issue's element index, EEW 8) on the same three ports. Rule A: the scales
+  // of vN are in vN+1 (docs/scaled-mode.md, as OuterProductSequencer's rs | 1).
+  val sphase = if (vParams.scaledMode) valid && inst.scaled && !sc_ready else false.B
+  val ren1 = Mux(sphase, inst.scaled_vs1, renv1)
+  val ren2 = Mux(sphase, inst.scaled_vs2, renv2)
+  val rend = Mux(sphase, inst.scaled_vd , renvd)
+  val renm = renvm && !sphase
+
+  val vs1_read_oh = Mux(ren1    , UIntToOH(io.rvs1.bits.eg), 0.U)
+  val vs2_read_oh = Mux(ren2    , UIntToOH(io.rvs2.bits.eg), 0.U)
+  val vd_read_oh  = Mux(rend    , UIntToOH(io.rvd.bits.eg ), 0.U)
+  val vm_read_oh  = Mux(renm    , UIntToOH(io.rvm.bits.eg ), 0.U)
   val vd_write_oh = Mux(inst.wvd, UIntToOH(io.iss.bits.wvd_eg), 0.U)
 
   val raw_hazard = ((vs1_read_oh | vs2_read_oh | vd_read_oh | vm_read_oh) & io.older_writes) =/= 0.U
@@ -212,18 +237,27 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   val rgatherv_e0_eidx = io.vgu.gather_eidx.bits
   val rgather_eidx = Mux(rgather_ix, uscalar, rgatherv_e0_eidx)
   val rgather_zero = rgather_eidx >= inst.vconfig.vtype.vlMax
-  io.rvs1.bits.eg := getEgId(inst.rs1, eidx     , vs1_eew, inst.reads_vs1_mask)
-  io.rvs2.bits.eg := Mux(rgather || rgatherei16,
-    getEgId(inst.rs2, rgather_eidx, vs2_eew, false.B),
-    getEgId(inst.rs2, eidx        , vs2_eew, inst.reads_vs2_mask)
-  )
-  io.rvd.bits.eg  := getEgId(inst.rd , eidx     , vs3_eew, false.B)
+  io.rvs1.bits.eg := Mux(sphase, getEgId(inst.rs1 | 1.U, eidx, 0.U, false.B),
+    getEgId(inst.rs1, eidx     , vs1_eew, inst.reads_vs1_mask))
+  io.rvs2.bits.eg := Mux(sphase, getEgId(inst.rs2 | 1.U, eidx, 0.U, false.B),
+    Mux(rgather || rgatherei16,
+      getEgId(inst.rs2, rgather_eidx, vs2_eew, false.B),
+      getEgId(inst.rs2, eidx        , vs2_eew, inst.reads_vs2_mask)
+    ))
+  io.rvd.bits.eg  := Mux(sphase, getEgId(inst.rd | 1.U, eidx, 0.U, false.B),
+    getEgId(inst.rd , eidx     , vs3_eew, false.B))
   io.rvm.bits.eg  := getEgId(0.U     , eidx     , 0.U    , true.B)
 
-  io.rvs1.valid := valid && renv1
-  io.rvs2.valid := valid && renv2
-  io.rvd.valid  := valid && renvd
-  io.rvm.valid  := valid && renvm
+  io.rvs1.valid := valid && ren1
+  io.rvs2.valid := valid && ren2
+  io.rvd.valid  := valid && rend
+  io.rvm.valid  := valid && renm
+
+  // The scales are read when every scale port is granted and no older
+  // instruction still has to write them; the data issues in a later cycle
+  io.scale_fire := sphase && !raw_hazard &&
+    !(ren1 && !io.rvs1.ready) && !(ren2 && !io.rvs2.ready) && !(rend && !io.rvd.ready)
+  when (io.scale_fire) { sc_ready := true.B }
 
   // Oldest read requests get priority
   val oldest = inst.vat === io.vat_head
@@ -233,12 +267,12 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.rvm.bits.oldest  := oldest
 
   val exu_scheduler = Module(new PipeScheduler(1, maxPipeDepth))
-  exu_scheduler.io.reqs(0).request := valid && pipelined
+  exu_scheduler.io.reqs(0).request := valid && pipelined && !sphase
   exu_scheduler.io.reqs(0).fire := io.iss.fire
   exu_scheduler.io.reqs(0).depth := pipe_stages
 
   val wvd_eg = getEgId(inst.rd, Mux(inst.reduction, 0.U, eidx), vd_eew, inst.writes_mask)
-  io.pipe_write_req.request := valid && pipelined && exu_scheduler.io.reqs(0).available
+  io.pipe_write_req.request := valid && pipelined && exu_scheduler.io.reqs(0).available && !sphase
   io.pipe_write_req.bank_sel := (if (vrfBankBits == 0) 1.U else UIntToOH(wvd_eg(vrfBankBits-1,0)))
   io.pipe_write_req.pipe_depth := pipe_stages
   io.pipe_write_req.oldest := oldest
@@ -257,6 +291,7 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.vgu.slide_req.bits.tail := (if (usesPerm) slide_tail else 0.U)
 
   val iss_valid = (valid &&
+    !sphase &&
     !data_hazard &&
     !(renv1 && !io.rvs1.ready) &&
     !(renv2 && !io.rvs2.ready) &&
@@ -279,6 +314,9 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.iss.bits.vd_eew    := vd_eew
   io.iss.bits.sew       := inst.vconfig.vtype.vsew
   io.iss.bits.altfmt    := inst.vconfig.vtype.altfmt
+  io.iss.bits.scaled_vs1.foreach(_ := inst.scaled_vs1)
+  io.iss.bits.scaled_vs2.foreach(_ := inst.scaled_vs2)
+  io.iss.bits.scaled_vd.foreach(_ := inst.scaled_vd)
   // No instruction selects the sweep's extra formats yet, so these bits are
   // zero. dontTouch stops firtool from removing the extra formats from the units.
   io.iss.bits.p3109_fmt_hi.foreach(f => f := dontTouch(WireInit(0.U(f.getWidth.W))))

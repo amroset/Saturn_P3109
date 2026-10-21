@@ -1,0 +1,130 @@
+// Scaled mode (docs/scaled-mode.md), on a P3109 build with block scales
+// (P3109BlockV256D128ShuttleConfig). Each test sets vtype's scaled bit (bit
+// 11, through vsetvl: vsetvli's immediate stops at bit 10) and runs one
+// instruction in which every 8-bit register operand vN is a block, its
+// Binary8p1uf scales in vN+1. Results are checked bit for bit against
+// gen_data.py's P3109 reference, which writes data.S (the arrays) and
+// tests.h (one line per test: kind, name, frm, altfmt, instruction).
+//
+// Registers, by kind (see gen_data.py):
+//   K8     vs2 v2 (scales v3), vs1 v4 (v5), vd v8 (v9): an 8-bit result
+//   KW     vs2 v2 (v3), vs1 v4 (v5), vd v8-v9: a BF16 result (and accumulator)
+//   KWW    vs2 v16-v17 (BF16), vs1 v4 (v5), vd v8-v9 (BF16)
+//   KWCVT  vs2 v2 (v3), vd v8-v9 (BF16): ConvertFromBlock
+//   KNCVT  vs2 v16-v17 (BF16), vd v8 (v9): ConvertToBlock
+// The .vf scalar is in f0, NaN-boxed; it is not a block.
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+
+#define N 128 // gen_data.py's COUNT
+#define VL 32 // elements per strip: VLEN 256, SEW 8, LMUL 1
+
+static uint8_t r8[N] __attribute__((aligned(64)));
+static uint16_t r16[N] __attribute__((aligned(64)));
+
+// vtype: e8 m1, ta ma, altfmt (bit 8), scaled (bit 11); and e16 m2 for BF16
+#define VT8(alt, sc) (0xC0UL | ((unsigned long)(alt) << 8) | ((unsigned long)(sc) << 11))
+#define VT16 0xC9UL
+static inline void vset(unsigned long vt) {
+	asm volatile("vsetvl x0, %0, %1" : : "r"((unsigned long)VL), "r"(vt));
+}
+#define LD8(v, p)  asm volatile("vle8.v "  v ", (%0)" : : "r"(p) : "memory")
+#define LD16(v, p) asm volatile("vle16.v " v ", (%0)" : : "r"(p) : "memory")
+#define ST8(v, p)  asm volatile("vse8.v "  v ", (%0)" : : "r"(p) : "memory")
+#define ST16(v, p) asm volatile("vse16.v " v ", (%0)" : : "r"(p) : "memory")
+#define SETFRM(rm) asm volatile("csrw frm, %0" : : "r"((unsigned long)(rm)))
+// the instruction, with the .vf scalar moved into f0 in the same asm statement
+#define RUN_OP(op, f) asm volatile("fmv.w.x f0, %0\n\t" op : : "r"(0xFFFFFF00u | (f)) : "f0", "memory")
+
+static int check(const char *name, const void *got, const void *want, int esize) {
+	int bad = 0;
+	for (int i = 0; i < N; i++) {
+		unsigned g = esize == 1 ? ((const uint8_t *)got)[i] : ((const uint16_t *)got)[i];
+		unsigned w = esize == 1 ? ((const uint8_t *)want)[i] : ((const uint16_t *)want)[i];
+		if (g != w && bad++ < 4)
+			printf("MISMATCH %s [%d]: got %#x, want %#x\n", name, i, g, w);
+	}
+	printf("%s: %d of %d differ\n", name, bad, N);
+	return bad != 0;
+}
+
+#define K8(t, rm, alt, op) \
+	extern uint8_t t##_a[], t##_sa[], t##_b[], t##_sb[], t##_c[], t##_sr[], t##_f[], t##_out[]; \
+	static int run_##t(void) { \
+		SETFRM(rm); \
+		for (size_t i = 0; i < N; i += VL) { \
+			vset(VT8(alt, 0)); \
+			LD8("v2", &t##_a[i]); LD8("v3", &t##_sa[i]); LD8("v4", &t##_b[i]); LD8("v5", &t##_sb[i]); \
+			LD8("v8", &t##_c[i]); LD8("v9", &t##_sr[i]); \
+			vset(VT8(alt, 1)); RUN_OP(op, t##_f[i / VL]); vset(VT8(alt, 0)); \
+			ST8("v8", &r8[i]); \
+		} \
+		return check(#t, r8, t##_out, 1); \
+	}
+#define KW(t, rm, alt, op) \
+	extern uint8_t t##_a[], t##_sa[], t##_b[], t##_sb[], t##_f[]; extern uint16_t t##_c[], t##_out[]; \
+	static int run_##t(void) { \
+		SETFRM(rm); \
+		for (size_t i = 0; i < N; i += VL) { \
+			vset(VT8(alt, 0)); \
+			LD8("v2", &t##_a[i]); LD8("v3", &t##_sa[i]); LD8("v4", &t##_b[i]); LD8("v5", &t##_sb[i]); \
+			vset(VT16); LD16("v8", &t##_c[i]); \
+			vset(VT8(alt, 1)); RUN_OP(op, t##_f[i / VL]); \
+			vset(VT16); ST16("v8", &r16[i]); \
+		} \
+		return check(#t, r16, t##_out, 2); \
+	}
+#define KWW(t, rm, alt, op) \
+	extern uint8_t t##_b[], t##_sb[]; extern uint16_t t##_a[], t##_out[]; \
+	static int run_##t(void) { \
+		SETFRM(rm); \
+		for (size_t i = 0; i < N; i += VL) { \
+			vset(VT16); LD16("v16", &t##_a[i]); \
+			vset(VT8(alt, 0)); LD8("v4", &t##_b[i]); LD8("v5", &t##_sb[i]); \
+			vset(VT8(alt, 1)); RUN_OP(op, 0); \
+			vset(VT16); ST16("v8", &r16[i]); \
+		} \
+		return check(#t, r16, t##_out, 2); \
+	}
+#define KWCVT(t, rm, alt, op) \
+	extern uint8_t t##_a[], t##_sa[]; extern uint16_t t##_out[]; \
+	static int run_##t(void) { \
+		SETFRM(rm); \
+		for (size_t i = 0; i < N; i += VL) { \
+			vset(VT8(alt, 0)); LD8("v2", &t##_a[i]); LD8("v3", &t##_sa[i]); \
+			vset(VT8(alt, 1)); RUN_OP(op, 0); \
+			vset(VT16); ST16("v8", &r16[i]); \
+		} \
+		return check(#t, r16, t##_out, 2); \
+	}
+#define KNCVT(t, rm, alt, op) \
+	extern uint8_t t##_sr[], t##_out[]; extern uint16_t t##_a[]; \
+	static int run_##t(void) { \
+		SETFRM(rm); \
+		for (size_t i = 0; i < N; i += VL) { \
+			vset(VT16); LD16("v16", &t##_a[i]); \
+			vset(VT8(alt, 0)); LD8("v9", &t##_sr[i]); \
+			vset(VT8(alt, 1)); RUN_OP(op, 0); vset(VT8(alt, 0)); \
+			ST8("v8", &r8[i]); \
+		} \
+		return check(#t, r8, t##_out, 1); \
+	}
+#include "tests.h"
+
+int main(void) {
+	int failed = 0;
+#undef K8
+#undef KW
+#undef KWW
+#undef KWCVT
+#undef KNCVT
+#define K8(t, rm, alt, op) failed |= run_##t();
+#define KW(t, rm, alt, op) failed |= run_##t();
+#define KWW(t, rm, alt, op) failed |= run_##t();
+#define KWCVT(t, rm, alt, op) failed |= run_##t();
+#define KNCVT(t, rm, alt, op) failed |= run_##t();
+#include "tests.h"
+	printf(failed ? "FAILED\n" : "passed\n");
+	return failed;
+}

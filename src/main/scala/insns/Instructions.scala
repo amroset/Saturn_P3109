@@ -204,6 +204,32 @@ object FCVT_SGL  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary
 object FCVT_WID  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b01???")), Wide2VD.Y, FPAdd.N, FPMul.N) }
 object FCVT_NRW  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b1????")), Wide2VD.N, Wide2VS2.Y, FPAdd.N, FPMul.N) }
 
+// Scaled mode decodes only (ScaledMode.insns): the FP8 <-> BF16 conversions,
+// vfwcvtbf16.f.f.v and vfncvtbf16[.sat].f.f.w at SEW 8
+object FCVT_WID_BF16 extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b01101")), Wide2VD.Y) }
+object FCVT_NRW_BF16 extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b111?1")), Wide2VS2.Y) }
+
+// Scaled mode (docs/scaled-mode.md): the instructions whose 8-bit operands are
+// blocks when vtype's scaled bit is set, all at SEW 8. The FMA's arithmetic
+// and the FP8 <-> BF16 conversions; not the reductions, which combine elements
+// (P3109 5.6 is not elementwise), nor compares, min/max, sign injection, moves.
+object ScaledMode {
+  def insns: Seq[VectorInstruction] = Seq(
+    FADD.VV, FADD.VF, FSUB.VV, FSUB.VF, FRSUB.VF,
+    FMUL.VV, FMUL.VF,
+    FMACC.VV, FMACC.VF, FNMACC.VV, FNMACC.VF,
+    FMSAC.VV, FMSAC.VF, FNMSAC.VV, FNMSAC.VF,
+    FMADD.VV, FMADD.VF, FNMADD.VV, FNMADD.VF,
+    FMSUB.VV, FMSUB.VF, FNMSUB.VV, FNMSUB.VF,
+    FWADD.VV, FWADD.VF, FWSUB.VV, FWSUB.VF,
+    FWADDW.VV, FWADDW.VF, FWSUBW.VV, FWSUBW.VF,
+    FWMUL.VV, FWMUL.VF,
+    FWMACC.VV, FWMACC.VF, FWNMACC.VV, FWNMACC.VF,
+    FWMSAC.VV, FWMSAC.VF, FWNMSAC.VV, FWNMSAC.VF,
+    FCVT_WID_BF16, FCVT_NRW_BF16
+  ).flatMap(_.restrictSEW(0))
+}
+
 object SLIDEUP     extends OPIInstruction    { val props = Seq(F6(OPIFunct6.slideup)    , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }
 object SLIDEDOWN   extends OPIInstruction    { val props = Seq(F6(OPIFunct6.slidedown)  , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }
 object SLIDE1UP    extends OPMInstruction    { val props = Seq(F6(OPMFunct6.slide1up)   , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }

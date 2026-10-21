@@ -609,4 +609,57 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
   }.reduce(_|_)
   io.scalar_write.valid := false.B
   io.scalar_write.bits := DontCare
+
+  // Scaled mode (docs/scaled-mode.md): a scaled instruction runs on one
+  // ScaledFMALane per element, with the operand roles of the lanes above, and
+  // its result replaces theirs. An 8-bit result fills the element group (dLenB
+  // lanes); a BF16 result, half as many elements, uses the first dLenB/2.
+  if (p3109.exists(_.block) && mxFPFMA) {
+    val in = io.pipe(0).bits
+    val scaled = in.scaled_vs1.get || in.scaled_vs2.get || in.scaled_vd.get
+    val lanes = Seq.tabulate(dLenB) { j =>
+      val lane = Module(new ScaledFMALane(depth, p3109.get))
+      def elem(data: UInt, eew: UInt) = extractElem(data, eew, eidx + j.U)(15, 0)
+      def scaleOf(en: Bool, data: UInt) = Mux(en, extractElem(data, 0.U, eidx + j.U)(7, 0), 128.U(8.W))
+      val v1 = elem(in.rvs1_data, vs1_eew)
+      val v2 = elem(in.rvs2_data, vs2_eew)
+      val vd = elem(in.rvd_data, in.rvd_eew)
+      val s1 = scaleOf(in.scaled_vs1.get, in.rvs1_scale.get)
+      val s2 = scaleOf(in.scaled_vs2.get, in.rvs2_scale.get)
+      val sd = scaleOf(in.scaled_vd.get, in.rvd_scale.get)
+      val fma = ctrl.bool(FPMul) && ctrl.bool(FPAdd)
+      val swap = fma && ctrl.bool(FPSwapVdV2)
+      // a: vs2 (vd for vfmadd and kin); b: vs1 (1 for adds); c: vd (vs2 when
+      // swapped, vs1 for adds, 0 for multiplies)
+      lane.io.a := Mux(swap, vd, v2)
+      lane.io.a_wide := Mux(swap, in.rvd_eew =/= 0.U, vs2_eew =/= 0.U)
+      lane.io.sa := Mux(swap, sd, s2)
+      lane.io.b := v1
+      lane.io.b_wide := vs1_eew =/= 0.U
+      lane.io.sb := s1
+      lane.io.c := Mux(fma, Mux(swap, v2, vd), v1)
+      lane.io.c_wide := Mux(fma, Mux(swap, vs2_eew, in.rvd_eew) =/= 0.U, vs1_eew =/= 0.U)
+      lane.io.sc := Mux(fma, Mux(swap, s2, sd), s1)
+      lane.io.sr := sd
+      lane.io.out_wide := vd_eew =/= 0.U
+      lane.io.addsub := ctrl.bool(FPAdd) && !ctrl.bool(FPMul)
+      lane.io.mul := ctrl.bool(FPMul) && !ctrl.bool(FPAdd)
+      lane.io.op := fmaCmd
+      lane.io.frm := in.frm
+      lane.io.altfmt := altfmt
+      lane.io.valid := io.pipe(0).valid && scaled
+      lane
+    }
+
+    val outp = io.pipe(depth-1).bits
+    when (outp.scaled_vs1.get || outp.scaled_vs2.get || outp.scaled_vd.get) {
+      val wide = outp.vd_eew =/= 0.U
+      io.write.bits.data := Mux(wide,
+        VecInit(lanes.take(dLenB / 2).map(_.io.out)).asUInt,
+        VecInit(lanes.map(_.io.out(7, 0))).asUInt)
+      io.set_fflags.bits := lanes.zipWithIndex.map { case (l, j) =>
+        Mux(Mux(wide, (j < dLenB / 2).B && outp.wmask(2 * j % dLenB), outp.wmask(j)), l.io.exc, 0.U)
+      }.reduce(_|_)
+    }
+  }
 }

@@ -81,8 +81,17 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   def writes_frf = !vmu && (funct3 === OPFVV)
   def sew = vconfig.vtype.vsew
   def altfmt = vconfig.vtype.altfmt
-  // element-format code, fmt_hi ## altfmt (rocket VType, VTypeFmtBits wide above altfmt)
-  def vfmt = Cat(vconfig.vtype.fmt_hi, vconfig.vtype.altfmt)
+  // vtype above altfmt (rocket VType.fmt_hi, VTypeFmtBits wide): bits 10:9 are
+  // the element-format code's upper bits, bit 11 the scaled mode
+  // (VectorParams.vtypeFmtBits). The code is vtype[10:9] ## altfmt.
+  def vfmt = {
+    val h = vconfig.vtype.fmt_hi
+    Cat(if (h.getWidth > 2) h(1, 0) else h, vconfig.vtype.altfmt)
+  }
+  def vscaled: Bool = {
+    val h = vconfig.vtype.fmt_hi
+    if (h.getWidth > 2) h(2) else false.B
+  }
 
   def isOpi = funct3.isOneOf(OPIVV, OPIVI, OPIVX)
   def isOpm = funct3.isOneOf(OPMVV, OPMVX)
@@ -109,6 +118,13 @@ class BackendIssueInst(implicit p: Parameters) extends VectorIssueInst()(p) {
   val renvd = Bool()
   val renvm = Bool()
   val wvd = Bool()
+
+  // Scaled mode (docs/scaled-mode.md): the operand is an 8-bit block whose
+  // scales are in the next register (rs1|1, rs2|1, rd|1), read but not written
+  val scaled_vs1 = Bool()
+  val scaled_vs2 = Bool()
+  val scaled_vd = Bool()
+  def scaled = scaled_vs1 || scaled_vs2 || scaled_vd
 }
 
 class IssueQueueInst(nSeqs: Int)(implicit p: Parameters) extends BackendIssueInst()(p) {
@@ -183,6 +199,10 @@ class ExecuteMicroOp(nFUs: Int)(implicit p: Parameters) extends CoreBundle()(p) 
   val altfmt = Bool()
   // Precision sweep: the P3109 format-code bits above altfmt (exu/fp/P3109Sweep.scala)
   val p3109_fmt_hi = Some(P3109Formats.fmtHiWidth(vParams.p3109)).filter(_ > 0).map(w => UInt(w.W))
+  // Scaled mode: which operands are 8-bit blocks (BackendIssueInst.scaled_*)
+  val scaled_vs1 = if (vParams.scaledMode) Some(Bool()) else None
+  val scaled_vs2 = if (vParams.scaledMode) Some(Bool()) else None
+  val scaled_vd  = if (vParams.scaledMode) Some(Bool()) else None
 
   val scalar = UInt(64.W)
 
@@ -248,6 +268,12 @@ class ExecuteMicroOpWithData(nFUs: Int)(implicit p: Parameters) extends ExecuteM
   val rvs1_elem = UInt(64.W)
   val rvs2_elem = UInt(64.W)
   val rvd_elem  = UInt(64.W)
+
+  // Scaled mode: the element group of rs1|1, rs2|1 and rd|1 at the same element
+  // index as the data, one Binary8p1uf scale per 8-bit element
+  val rvs1_scale = if (vParams.scaledMode) Some(UInt(dLen.W)) else None
+  val rvs2_scale = if (vParams.scaledMode) Some(UInt(dLen.W)) else None
+  val rvd_scale  = if (vParams.scaledMode) Some(UInt(dLen.W)) else None
 }
 
 class StoreDataMicroOp(implicit p: Parameters) extends CoreBundle()(p) with HasVectorParams {

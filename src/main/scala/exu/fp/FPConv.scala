@@ -261,8 +261,13 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
   val s2i_exc = s2i.map(f => RegEnable(toExc(f.io.intExceptionFlags), s1_valid))
   val h2i_exc = h2i.map(f => RegEnable(toExc(f.io.intExceptionFlags), s1_valid))
 
+  // P3109 has one zero, encoded in BF16 as +0 (Interim Report v4.0.3, 4.8.2).
+  // Only a scaled conversion can produce -0, from a zero scale or underflow;
+  // without one, an 8-bit value converts exactly and its zero is +0.
   val fp82bf16_out = (if (use_scale) fp82bf16_blk.map(_.io.out) else fp82bf16.map(_.io.out))
-    .map(o => RegEnable(MXFType.BF16.ieee(o), s1_valid))
+    .map(o => MXFType.BF16.ieee(o))
+    .map(o => if (use_scale) Mux(o(14, 0) === 0.U, 0.U(16.W), o) else o)
+    .map(o => RegEnable(o, s1_valid))
   val bf162s_out = bf162s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val h2s_out = h2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val s2d_out = s2d.map(f => RegEnable(FType.D.ieee(f.io.out), s1_valid))
@@ -394,6 +399,20 @@ class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p:
   val expanded_rvs2_data = narrow2_expand(rvs2_data.asTypeOf(Vec(dLenB, UInt(8.W))), rvs2_eew,
     hi, false.B).asUInt
 
+  // Scaled mode: P3109 ConvertFromBlock (vfwcvtbf16.f.f.v, scales of vs2) and
+  // ConvertToBlock (vfncvtbf16[.sat].f.f.w, scales of vd). Either converts the
+  // half of an 8-bit element group selected by `half`; the half of the scale
+  // group is spread like the widening data, one scale in the low byte of each
+  // 16-bit slot, where FPConvBlock reads it (scale8(2*i)). Any other
+  // conversion, and any unscaled instruction, gets scale 2^0 (code 128).
+  val scale_in = if (p3109.exists(_.block)) {
+    val bits = io.pipe(0).bits
+    val half = (io.pipe(0).bits.eidx >> (dLenOffBits - 1))(0)
+    def spread(sc: UInt) = narrow2_expand(sc.asTypeOf(Vec(dLenB, UInt(8.W))), 0.U, half, false.B).asUInt
+    Some(Mux(bits.scaled_vs2.get, spread(bits.rvs2_scale.get),
+      Mux(bits.scaled_vd.get, spread(bits.rvd_scale.get), Fill(dLenB, 128.U(8.W)))))
+  } else None
+
   val conv_blocks = Seq.fill(dLen/64) { Module(new FPConvBlock(mxConversion, p3109)) }
   conv_blocks.zipWithIndex.foreach { case (c,i) =>
     c.io.valid := io.pipe(0).valid
@@ -413,9 +432,7 @@ class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p:
     c.io.truncating := ctrl_truncating
     c.io.rto := ctrl_round_to_odd
     c.io.sat := ctrl_sat
-    // No ISA source for scales yet: 2^0 (code 128). dontTouch keeps the block
-    // datapath from being folded into that constant.
-    c.io.scale.foreach(_ := dontTouch(WireInit(Fill(8, 128.U(8.W)))))
+    c.io.scale.foreach(_ := scale_in.get((i*64)+63, i*64))
   }
 
   val out = Wire(UInt(dLen.W))

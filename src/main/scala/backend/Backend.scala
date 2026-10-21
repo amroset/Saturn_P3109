@@ -124,6 +124,9 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     issq.io.enq.bits.wvd   := false.B
     issq.io.enq.bits.scalar_to_vd0 := false.B
     issq.io.enq.bits.rs1_is_rs2 := false.B
+    issq.io.enq.bits.scaled_vs1 := false.B
+    issq.io.enq.bits.scaled_vs2 := false.B
+    issq.io.enq.bits.scaled_vd := false.B
   }
 
   val dis_ctrl = Wire(new VectorDecodedControl(all_supported_insns, Seq(
@@ -164,6 +167,20 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     vxissq.io.enq.bits.wvd := !dis_ctrl.bool(WritesScalar)
     vxissq.io.enq.bits.scalar_to_vd0 := dis_ctrl.bool(ScalarToVD0)
     vxissq.io.enq.bits.reduction := dis_ctrl.bool(Reduction)
+  }
+
+  // Scaled mode: of a ScaledMode instruction with vtype's scaled bit set, every
+  // 8-bit vector operand is a block (vs1 if read as a vector, vs2 unless it is
+  // the wide source, vd unless it is the wide result), its scales in the next
+  // register. Scalar (.vf) operands and wide (BF16) operands are not scaled.
+  if (vParams.scaledMode) {
+    val dis_inst = vdq.io.deq.bits
+    val dis_scaled = dis_inst.vscaled && new VectorDecoder(dis_inst, ScaledMode.insns, Nil).matched
+    vxissqs.foreach { vxissq =>
+      vxissq.io.enq.bits.scaled_vs1 := dis_scaled && dis_ctrl.bool(ReadsVS1)
+      vxissq.io.enq.bits.scaled_vs2 := dis_scaled && dis_ctrl.bool(ReadsVS2) && !dis_ctrl.bool(Wide2VS2)
+      vxissq.io.enq.bits.scaled_vd  := dis_scaled && !dis_ctrl.bool(Wide2VD)
+    }
   }
 
 
@@ -300,6 +317,16 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     vxu_iss.rvs1_data := rvs1_data
     vxu_iss.rvs2_data := rvs2_data
     vxu_iss.rvd_data := rvd_data
+
+    // Scaled mode: the read responses of a scale cycle, held for the data issue
+    // that follows it (ExecuteSequencer's scale_fire)
+    if (vParams.scaledMode) {
+      val ports = Seq(vrf.io.vxs(i).rvs1, vrf.io.vxs(i).rvs2, vrf.io.vxs(i).rvd)
+      val scale_buf = ports.map(port => RegEnable(port.resp, vxs.io.scale_fire))
+      vxu_iss.rvs1_scale.get := scale_buf(0)
+      vxu_iss.rvs2_scale.get := scale_buf(1)
+      vxu_iss.rvd_scale.get  := scale_buf(2)
+    }
 
     val rvs1_elem = extractElem(rvs1_data, vxs_iss.rvs1_eew, vxs_iss.eidx)
     val rvs2_elem = extractElem(rvs2_data, vxs_iss.rvs2_eew, vxs_iss.eidx)

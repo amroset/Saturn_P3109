@@ -17,9 +17,9 @@ class WithRocketVectorUnit(
   useL1DCache: Boolean = true,
   mLen: Option[Int] = None
 ) extends Config((site, here, up) => {
-  // FP4 in the OPU is selected by element-format code 6, which needs two vtype
-  // bits above altfmt
-  case VTypeFmtBits => if (params.opuFP4) 2 else up(VTypeFmtBits, site)
+  // vtype bits above altfmt: two for FP4 in the OPU (element-format code 6),
+  // three with scaled mode (bit 11)
+  case VTypeFmtBits => if (params.vtypeFmtBits > 0) params.vtypeFmtBits else up(VTypeFmtBits, site)
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => {
       val buildVector = cores.map(_.contains(tp.tileParams.tileId)).getOrElse(true)
