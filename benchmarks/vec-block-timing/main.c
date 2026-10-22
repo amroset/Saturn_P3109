@@ -1,8 +1,8 @@
-// Cycles per instruction of scaled mode (docs/scaled-mode.md) against the
-// same instruction unscaled, on P3109BlockV256D128ShuttleConfig. Each pattern
+// Cycles per instruction of scaled mode (docs/scaled-mode.md), with B = 1 and
+// B = 32, against the same instruction unscaled, on P3109BlockV256D128ShuttleConfig. Each pattern
 // is a run of independent LMUL-1 instructions (destinations rotate over four
-// register pairs); cycles(64) - cycles(32), over 32, is the steady-state cost
-// per instruction, free of start-up and drain. The data values do not affect
+// register pairs); cycles(256) - cycles(128), over 128, best of three, is the
+// steady-state cost per instruction, free of start-up and drain. The data values do not affect
 // the timing.
 #include <stdio.h>
 #include <stdint.h>
@@ -35,13 +35,15 @@ static unsigned long drain(void) {
 #define X2(a) a a
 #define X8(a) X2(X2(X2(a)))
 #define X16(a) X2(X8(a))
+#define X32(a) X2(X16(a))
+#define X64(a) X2(X32(a))
 
 #define PATTERN(name, a, b, c, d) \
 	static unsigned long name(int n64, unsigned long vt) { \
 		vset(vt); drain(); vset(vt); \
 		unsigned long t = read_csr(mcycle); \
-		if (n64) asm volatile(X16(X4(a, b, c, d)) ::: "memory"); /* 64 */ \
-		else     asm volatile(X8(X4(a, b, c, d)) ::: "memory");  /* 32 */ \
+		if (n64) asm volatile(X64(X4(a, b, c, d)) ::: "memory"); /* 256 */ \
+		else     asm volatile(X32(X4(a, b, c, d)) ::: "memory"); /* 128 */ \
 		drain(); \
 		return read_csr(mcycle) - t; \
 	}
@@ -57,18 +59,21 @@ PATTERN(p_ncvt, ".insn r 0x57, 0x1, 0x25, x8, x29, x24", ".insn r 0x57, 0x1, 0x2
                 ".insn r 0x57, 0x1, 0x25, x12, x29, x24", ".insn r 0x57, 0x1, 0x25, x14, x29, x24")
 
 static void report(const char *name, unsigned long (*f)(int, unsigned long)) {
-	unsigned long c[2], c64[2], c32[2];
-	for (int sc = 0; sc < 2; sc++) {
-		f(1, VT8(sc)); f(0, VT8(sc)); // warm up both: they are separate code
-		c64[sc] = f(1, VT8(sc));
-		c32[sc] = f(0, VT8(sc));
-		c[sc] = c64[sc] - c32[sc];
+	// unscaled, scaled with B = 1, scaled with B = 32 (vtype bits 14:12 = 5)
+	const unsigned long vt[3] = {VT8(0), VT8(1), VT8(1) | (5UL << 12)};
+	unsigned long c[3];
+	for (int m = 0; m < 3; m++) {
+		f(1, vt[m]); f(0, vt[m]); // warm up both: they are separate code
+		c[m] = ~0UL;
+		for (int r = 0; r < 3; r++) { // best of three
+			unsigned long d = f(1, vt[m]) - f(0, vt[m]);
+			if (d < c[m]) c[m] = d;
+		}
 	}
-	printf("%-6s raw: unscaled %lu/%lu, scaled %lu/%lu cycles for 64/32 instructions\n",
-	       name, c64[0], c32[0], c64[1], c32[1]);
-	// cycles per instruction, x100
-	printf("%-6s unscaled %lu.%02lu  scaled %lu.%02lu cycles/instruction\n", name,
-	       c[0] * 100 / 32 / 100, c[0] * 100 / 32 % 100, c[1] * 100 / 32 / 100, c[1] * 100 / 32 % 100);
+	// cycles per instruction over the 128 extra instructions, two decimals
+	printf("%-6s unscaled %lu.%02lu  B=1 %lu.%02lu  B=32 %lu.%02lu cycles/instruction\n", name,
+	       c[0] * 100 / 128 / 100, c[0] * 100 / 128 % 100, c[1] * 100 / 128 / 100, c[1] * 100 / 128 % 100,
+	       c[2] * 100 / 128 / 100, c[2] * 100 / 128 % 100);
 }
 
 int main(void) {

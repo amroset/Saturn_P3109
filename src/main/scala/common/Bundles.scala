@@ -82,8 +82,9 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   def sew = vconfig.vtype.vsew
   def altfmt = vconfig.vtype.altfmt
   // vtype above altfmt (rocket VType.fmt_hi, VTypeFmtBits wide): bits 10:9 are
-  // the element-format code's upper bits, bit 11 the scaled mode
-  // (VectorParams.vtypeFmtBits). The code is vtype[10:9] ## altfmt.
+  // the element-format code's upper bits, bit 11 the scaled mode, bits 14:12
+  // log2 of the block size (VectorParams.vtypeFmtBits). The code is
+  // vtype[10:9] ## altfmt.
   def vfmt = {
     val h = vconfig.vtype.fmt_hi
     Cat(if (h.getWidth > 2) h(1, 0) else h, vconfig.vtype.altfmt)
@@ -91,6 +92,11 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   def vscaled: Bool = {
     val h = vconfig.vtype.fmt_hi
     if (h.getWidth > 2) h(2) else false.B
+  }
+  // Scaled mode: element i of a block operand takes scale byte i >> vscale_lb
+  def vscale_lb: UInt = {
+    val h = vconfig.vtype.fmt_hi
+    if (h.getWidth > 5) h(5, 3) else 0.U(3.W)
   }
 
   def isOpi = funct3.isOneOf(OPIVV, OPIVI, OPIVX)
@@ -203,6 +209,7 @@ class ExecuteMicroOp(nFUs: Int)(implicit p: Parameters) extends CoreBundle()(p) 
   val scaled_vs1 = if (vParams.scaledMode) Some(Bool()) else None
   val scaled_vs2 = if (vParams.scaledMode) Some(Bool()) else None
   val scaled_vd  = if (vParams.scaledMode) Some(Bool()) else None
+  val scale_lb   = if (vParams.scaledMode) Some(UInt(3.W)) else None // log2 of the block size
 
   val scalar = UInt(64.W)
 
@@ -269,8 +276,8 @@ class ExecuteMicroOpWithData(nFUs: Int)(implicit p: Parameters) extends ExecuteM
   val rvs2_elem = UInt(64.W)
   val rvd_elem  = UInt(64.W)
 
-  // Scaled mode: the element group of rs1|1, rs2|1 and rd|1 at the same element
-  // index as the data, one Binary8p1uf scale per 8-bit element
+  // Scaled mode: an element group of rs1|1, rs2|1 and rd|1, the one holding
+  // scale byte eidx >> scale_lb (ExecuteSequencer)
   val rvs1_scale = if (vParams.scaledMode) Some(UInt(dLen.W)) else None
   val rvs2_scale = if (vParams.scaledMode) Some(UInt(dLen.W)) else None
   val rvd_scale  = if (vParams.scaledMode) Some(UInt(dLen.W)) else None

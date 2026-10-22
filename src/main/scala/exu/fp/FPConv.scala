@@ -401,16 +401,17 @@ class FPConvPipe(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p:
 
   // Scaled mode: P3109 ConvertFromBlock (vfwcvtbf16.f.f.v, scales of vs2) and
   // ConvertToBlock (vfncvtbf16[.sat].f.f.w, scales of vd). Either converts the
-  // half of an 8-bit element group selected by `half`; the half of the scale
-  // group is spread like the widening data, one scale in the low byte of each
-  // 16-bit slot, where FPConvBlock reads it (scale8(2*i)). Any other
-  // conversion, and any unscaled instruction, gets scale 2^0 (code 128).
+  // 8 elements eidx + k, k < dLenB/2, in 16-bit slots; slot k gets scale byte
+  // (eidx + k) >> log2(B) in its low byte, where FPConvBlock reads it
+  // (scale8(2*i)). Any other conversion, and any unscaled instruction, gets
+  // scale 2^0 (code 128).
   val scale_in = if (p3109.exists(_.block)) {
     val bits = io.pipe(0).bits
-    val half = (io.pipe(0).bits.eidx >> (dLenOffBits - 1))(0)
-    def spread(sc: UInt) = narrow2_expand(sc.asTypeOf(Vec(dLenB, UInt(8.W))), 0.U, half, false.B).asUInt
-    Some(Mux(bits.scaled_vs2.get, spread(bits.rvs2_scale.get),
-      Mux(bits.scaled_vd.get, spread(bits.rvd_scale.get), Fill(dLenB, 128.U(8.W)))))
+    def gather(sc: UInt) = VecInit(Seq.tabulate(dLenB / 2) { k =>
+      0.U(8.W) ## extractElem(sc, 0.U, (bits.eidx + k.U) >> bits.scale_lb.get)(7, 0)
+    }).asUInt
+    Some(Mux(bits.scaled_vs2.get, gather(bits.rvs2_scale.get),
+      Mux(bits.scaled_vd.get, gather(bits.rvd_scale.get), Fill(dLenB, 128.U(8.W)))))
   } else None
 
   val conv_blocks = Seq.fill(dLen/64) { Module(new FPConvBlock(mxConversion, p3109)) }

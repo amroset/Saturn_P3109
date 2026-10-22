@@ -620,7 +620,8 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
     val lanes = Seq.tabulate(dLenB) { j =>
       val lane = Module(new ScaledFMALane(depth, p3109.get))
       def elem(data: UInt, eew: UInt) = extractElem(data, eew, eidx + j.U)(15, 0)
-      def scaleOf(en: Bool, data: UInt) = Mux(en, extractElem(data, 0.U, eidx + j.U)(7, 0), 128.U(8.W))
+      // element eidx + j takes scale byte (eidx + j) >> log2(B)
+      def scaleOf(en: Bool, data: UInt) = Mux(en, extractElem(data, 0.U, (eidx + j.U) >> in.scale_lb.get)(7, 0), 128.U(8.W))
       val v1 = elem(in.rvs1_data, vs1_eew)
       val v2 = elem(in.rvs2_data, vs2_eew)
       val vd = elem(in.rvd_data, in.rvd_eew)

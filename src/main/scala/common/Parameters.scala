@@ -74,9 +74,9 @@ object VectorParams {
   )
 
   // p3109BlockParams:
-  // Same as p3109Params, with scaled mode (vtype bit 11, VTypeFmtBits = 3): in
-  // FPConv and the FMA, an 8-bit operand in vN is a block whose scales are in
-  // vN+1, one Binary8p1uf byte per element (docs/scaled-mode.md).
+  // Same as p3109Params, with scaled mode (vtype bit 11, block size in bits
+  // 14:12, VTypeFmtBits = 6): in FPConv and the FMA, an 8-bit operand in vN is
+  // a block whose Binary8p1uf scales are in vN+1 (docs/scaled-mode.md).
   def p3109BlockParams = p3109Params.copy(
     p3109 = Some(P3109Formats(block = true))
   )
@@ -509,10 +509,11 @@ case class VectorParams(
   require(!scaledMode || useMxFPFMA, "scaled mode needs the 8-bit FMA")
 
   // Scaled mode (P3109Formats.block): vtype bit 11 marks an instruction as
-  // scaled, so vtype needs three bits above altfmt (bits 10:9 being the
-  // element-format code's upper bits, used by opuFP4).
+  // scaled and bits 14:12 hold log2 of its block size, so vtype needs six bits
+  // above altfmt (bits 10:9 being the element-format code's upper bits, used
+  // by opuFP4).
   def scaledMode = p3109.exists(_.block)
-  def vtypeFmtBits = if (scaledMode) 3 else if (opuFP4) 2 else 0
+  def vtypeFmtBits = if (scaledMode) 6 else if (opuFP4) 2 else 0
 }
 
 case object VectorParamsKey extends Field[VectorParams]
