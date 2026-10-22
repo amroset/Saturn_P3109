@@ -14,6 +14,8 @@ Both 8-bit formats of the build. Three tests:
         every OPFMACC.S evicts and refills (a stress test of the cache)
   gram  C = (sA x A)(sA x A)^T: A is both operands, so two of the four
         tiles read the same register as vs1 and vs2
+  coarse (--coarse, scaled mode) gemm with one scale per 32 rows (columns),
+        in byte 0 of each scale register, the other bytes random
   gemm4 (--fp4) P3109 Binary4p2sf pairs, element-format code 6: each byte
         holds steps k (bits 3:0) and k+1 (bits 7:4), each instruction adds
         the exact dot product of a pair, rounded once; block 32, a zero
@@ -115,6 +117,18 @@ def arrays(args):
         sa, sb = scales(rng, M, 2 * K // BLK), scales(rng, N, 2 * K // BLK)
         ka = [sa[2 * (k // BLK) + k % 2] for k in range(K)]
         kb = [sb[2 * (k // BLK) + k % 2] for k in range(K)]
+    elif test == "coarse":
+        # one scale per 32 rows (columns) per block, in byte 0 of each scale
+        # register; the other bytes are random codes, which must be ignored
+        sa, sb = scales(rng, M, K // BLK), scales(rng, N, K // BLK)
+        for blk in range(K // BLK):
+            for lst in (sa[blk], sb[blk]):
+                for i in range(len(lst)):
+                    if i % 32:
+                        lst[i] = rng.randrange(256)
+        sa[1][32] = 0     # a zero scale: rows 32..63 add nothing in block 1
+        ka = [[sa[k // BLK][i // 32 * 32] for i in range(M)] for k in range(K)]
+        kb = [[sb[k // BLK][j // 32 * 32] for j in range(N)] for k in range(K)]
     else:  # gram
         b, sa = a, scales(rng, M, K // BLK)
         sb = sa
@@ -133,9 +147,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--std", choices=sorted(FP8_STANDARDS), default="p3109")
     ap.add_argument("--fp4", action="store_true", help="also the FP4 test, for a config with opuFP4")
+    ap.add_argument("--coarse", action="store_true", help="also the coarse test, for main.c -DSCALEDMODE")
     ap.add_argument("output")
     args = ap.parse_args()
-    jobs = [(args.std, t, f) for t in ("gemm", "evict", "gram") for f in (0, 1)]
+    tests = ("gemm", "evict", "gram") + (("coarse",) if args.coarse else ())
+    jobs = [(args.std, t, f) for t in tests for f in (0, 1)]
     with Pool() as pool:
         results = pool.map(arrays, jobs)
     with open(args.output, "w") as f:

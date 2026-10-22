@@ -15,10 +15,10 @@ one makes `vtype` illegal (`vill`).
 | `vtype` bits | Field |
 |---|---|
 | 11 | scaled mode |
-| 14:12 | log2 of the block size B: 1, 2, 4, …, 128 |
+| 14:12 | log2 of E, the elements per scale byte: 1, 2, 4, …, 128 |
 
 `vsetvli`'s immediate stops at bit 10, so use `vsetvl`, e.g. `vtype` = 0x58C0
-for e8, m1, ta, ma, binary8p4, scaled, B = 32 (0x08C0 for B = 1).
+for e8, m1, ta, ma, binary8p4, scaled, E = 32 (0x08C0 for E = 1).
 
 ## The rule
 
@@ -27,10 +27,10 @@ In scaled mode, for the instructions below, every 8-bit vector operand vN is a b
 | Register | Contents |
 |---|---|
 | vN | `x[0..R-1]`, 8-bit elements |
-| vN+1 | `s[0..R/B-1]`: byte j is the Binary8p1uf scale of elements jB to jB+B−1 |
+| vN+1 | `s[0..R/E-1]`: byte j is the Binary8p1uf scale of elements jE to jE+E−1 |
 
-With R = VLEN/8: element i takes byte i >> log2(B). Bytes past R/B are ignored;
-with B ≥ R, byte 0 scales the whole register. A destination's scales are read,
+With R = VLEN/8: element i takes byte i >> log2(E). Bytes past R/E are ignored;
+with E ≥ R, byte 0 scales the whole register. A destination's scales are read,
 not written: they are the result block's scale, an input (P3109 §5.7).
 
 - vN must be even, and LMUL 1. Other settings are reserved; Saturn does not trap them.
@@ -54,7 +54,7 @@ compares, min/max, sign injection, moves, other conversions.
 ## Operation
 
 For element i, with each block operand decoded by P3109's ωBlockDecode (§5.4.1),
-`X = x[i] × 2^(s[i>>log2 B]−128)` (scale 0: zero, or NaN for an infinite or NaN x;
+`X = x[i] × 2^(s[i>>log2 E]−128)` (scale 0: zero, or NaN for an infinite or NaN x;
 scale 255: NaN):
 
 ```
@@ -69,14 +69,33 @@ BF16 result:   r = round(Z)
 - A zero result is +0 in BF16 (P3109 §4.8.2).
 - With every scale 2^0 (code 128), each instruction computes what it computes unscaled.
 
-## Block size
+## Elements per scale byte and block size
 
-B = 1 gives every element its own scale: P3109's scaled operations, and blocks
-across the vector (a quantizer working across rows, as the OPU's A operand
-needs). B ≥ 2 is blocks along the vector, stored compactly, one byte per block,
-as in memory. Block sizes that are not powers of two use B = 1 with the scale
-repeated. For elementwise operations either is exact: each element depends
-only on its own block's scale (§5.4.1, §5.4.2).
+E says how the elements of one register share scale bytes; it is not the
+block size. A block runs along one dimension of a tensor (MX: 32 consecutive
+k), and which register elements it covers depends on how the program walks
+the tensor:
+
+- Along the block (a quantizer along a row): the register holds whole blocks,
+  and E is the block size (32 for MX), one byte per block.
+- Across blocks (one element from each of R rows, as the OPU's operands and
+  the quantizer producing them): every element is in a different block, E = 1,
+  and the block continues across instructions: software keeps the same scale
+  register for as many instructions as the block is long.
+
+E = 1 is also P3109's scaled operations. Block sizes that are not powers of
+two use E = 1 with the scale repeated. For elementwise operations each element
+depends only on its own block's scale (§5.4.1, §5.4.2), so this is exact.
+
+## The OPU
+
+In scaled mode `OPFMACC` is `OPFMACC.S` ([opfmacc-s.md](opfmacc-s.md)); the
+two encodings compute the same thing. Both honor E: row i of the tile takes
+byte i >> log2(E) of vs1+1, column j byte j >> log2(E) of vs2+1. E = 1 (the
+default) is a scale per row and column, as MX needs; the MX block runs along
+k, across instructions. E = 32 gives one scale to the whole tile side, for
+coarse scaling such as 128 × 128 weight blocks, and lets the OPU fill only the
+scale register's first element group.
 
 ## Saturn implementation
 
@@ -88,8 +107,11 @@ None of this is architectural:
   instruction's read intents (`IssueQueue`, `ExecuteSequencer`).
 - **Scale reads.** The execute sequencer reads the scale registers' element
   groups on the same three ports, in a cycle of their own, whenever an issue
-  needs a group the backend does not hold (`scale_fire`, `sc_group`): once
-  per 8-bit element group with B = 1, once per LMUL-1 instruction with B ≥ 2.
+  needs a group the backend does not hold (`scale_fire`). Each port keeps one
+  entry per element group of a register across instructions, until a
+  register-file write to it (`write_snoop`): a reused scale register costs no
+  read. Otherwise: once per 8-bit element group with E = 1, once per LMUL-1
+  instruction with E ≥ 2.
 - **FPConv.** The scales reach the existing P3109 block datapath (`P3109Scale.decode`,
   `P3109Scale.project`), spread like the widening data.
 - **FMA.** A scaled operand (up to 2^±142) fits none of the FMA's lanes
@@ -101,10 +123,13 @@ None of this is architectural:
 - **Tests.** `benchmarks/vec-block` runs 17 instructions in scaled mode
   (`vfadd`, `vfsub`, `vfmul`, `vfmacc`, `vfnmsac`, `vfmadd`, `vfmul.vf`,
   `vfrsub.vf`, `vfwadd`, `vfwsub`, `vfwmul`, `vfwmacc`, `vfwmul.vf`,
-  `vfwadd.wv`, both conversions and `.sat`) with B = 1 in both 8-bit formats,
-  six of them in all five rounding modes, and each again with B = 2, 8 and 32,
+  `vfwadd.wv`, both conversions and `.sat`) with E = 1 in both 8-bit formats,
+  six of them in all five rounding modes, and each again with E = 2, 8 and 32,
   the unused scale bytes random: 133 tests of 128 elements, against a gfloat
   reference (`gen_data/gen_data.py`) built on `fma_ref`'s exact arithmetic.
 - **Cost** (`benchmarks/vec-block-timing`, cycles per LMUL-1 instruction):
-  one cycle per scale read. FP8 → FP8: 2 unscaled, 4 with B = 1, 3 with
-  B ≥ 2; widening and conversions: 4 unscaled, 6 with B = 1, 5 with B ≥ 2.
+  one cycle per scale read, none when the buffer holds the group. FP8 → FP8:
+  2 unscaled, 4 with E = 1, 3 with E ≥ 2 (destinations rotating); widening and
+  conversions with reused scale registers: 4, as unscaled.
+- **Against software** (`benchmarks/vec-block-kernels`): dequantize and
+  quantize ≈ 2× faster, GEMV 1.16×, all bit-identical.

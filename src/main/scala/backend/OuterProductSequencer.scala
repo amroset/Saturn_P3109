@@ -57,7 +57,9 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
   val mvout = Reg(Bool())
   val macc = Reg(Bool())
   val macc_fp8 = Reg(Bool())
-  val scaled = Reg(Bool()) // OPFMACC.S
+  val scaled = Reg(Bool()) // OPFMACC.S, or OPFMACC in scaled mode
+  // scaled mode: log2 of the rows (columns) sharing a scale byte (vtype 14:12)
+  val scale_lg = if (vParams.scaledMode) Reg(UInt(3.W)) else 0.U(3.W)
 
   // Scale cache. OPFMACC.S reads its scales from vs1+1 and vs2+1, but the OPU
   // has only two register-file read ports, both busy with data. Scales change
@@ -121,11 +123,13 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
     eew        := dis_inst.vconfig.vtype.vsew
     val funct6 = OPMFunct6(dis_inst.funct6)
     val fp_funct6 = OPFFunct6(dis_inst.funct6)
-    val dis_scaled = fp_funct6 === OPFFunct6.opfmaccs
-    // the frontend gives OPFMACC.S EMUL 2 so hazards cover the scale
-    // registers; the data are still one register each
+    // OPFMACC.S, or OPFMACC in scaled mode (vtype bit 11): the same operation
+    val dis_scaled = fp_funct6 === OPFFunct6.opfmaccs || (fp_funct6 === OPFFunct6.opfmacc && dis_inst.vscaled)
+    // the frontend gives both EMUL 2 so hazards cover the scale registers;
+    // the data are still one register each
     emul        := Mux(dis_scaled, dis_inst.emul - 1.U, dis_inst.emul)
     scaled := dis_scaled
+    if (vParams.scaledMode) scale_lg := Mux(dis_scaled, dis_inst.vscale_lg, 0.U)
     macc_fp8 :=  fp_funct6 === OPFFunct6.opfmacc || dis_scaled
     macc :=  (funct6 === OPMFunct6.opmacc) || (fp_funct6 === OPFFunct6.opfmacc) || dis_scaled
 
@@ -188,9 +192,12 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
   val tA = inst.rs1 | 1.U // scale registers, rule A as at dispatch above
   val tB = inst.rs2 | 1.U
   val sameAB = eA === eB // vs1 = vs2: one register, one entry
+  // the pieces holding scale bytes in use: the first (vLen/8) >> scale_lg
+  // bytes (all of them unless scaled mode shares bytes among rows)
+  val usedP = VecInit((0 until egsPerVReg).map(p => (p * dLenB).U < ((vLen / 8).U >> scale_lg))).asUInt
   // one bit per piece (element group) of the register: still to be read
-  val needA = ~c_pv(eA)
-  val needB = Mux(sameAB, needA & ~UIntToOH(PriorityEncoder(needA), egsPerVReg), ~c_pv(eB))
+  val needA = ~c_pv(eA) & usedP
+  val needB = Mux(sameAB, needA & ~UIntToOH(PriorityEncoder(needA), egsPerVReg), ~c_pv(eB) & usedP)
   val pA = PriorityEncoder(needA) // the piece read this cycle
   val pB = PriorityEncoder(needB)
   val fillA = valid && scaled && needA.orR // A's scales still incomplete
@@ -280,8 +287,16 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
   io.iss.bits.scaled := io.iss.fire && scaled
   io.iss.bits.sa_entry := eA
   io.iss.bits.sb_entry := eB
-  io.iss.bits.sa_piece := Mux(filling, pA, row_idx)
-  io.iss.bits.sb_piece := Mux(filling, pB, col_idx)
+  // the piece holding an issue's scale bytes (rows, columns 16q .. 16q+15,
+  // bytes (16q + r) >> scale_lg: one piece)
+  def scalePiece(q: UInt): UInt = (((q << dLenOffBits) >> scale_lg) >> dLenOffBits)(log2Ceil(egsPerVReg) - 1, 0)
+  val row_q = row_idx(log2Ceil(egsPerVReg) - 1, 0)
+  val col_q = col_idx(log2Ceil(egsPerVReg) - 1, 0)
+  io.iss.bits.sa_piece := Mux(filling, pA, scalePiece(row_q))
+  io.iss.bits.sb_piece := Mux(filling, pB, scalePiece(col_q))
+  io.iss.bits.scale_lg.foreach(_ := scale_lg)
+  io.iss.bits.sa_quad.foreach(_ := row_q)
+  io.iss.bits.sb_quad.foreach(_ := col_q)
   io.iss.bits.sa_fill  := filling && io.rvs1.fire
   io.iss.bits.sb_fill  := filling && io.rvs2.fire
 

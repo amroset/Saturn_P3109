@@ -321,7 +321,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     // Scaled mode: each port's scale reads, one entry per element group of a
     // register, by the group's position (ExecuteSequencer's sc_tag), kept for
     // later issues, even of later instructions. An issue takes the entry of the
-    // group holding scale byte eidx >> log2(B).
+    // group holding scale byte eidx >> log2(E).
     vxs.io.write_snoop := vrf.io.write_snoop
     if (vParams.scaledMode) {
       def slot(eg: UInt): UInt = if (egsPerVReg == 1) 0.U else eg(log2Ceil(egsPerVReg) - 1, 0)
@@ -331,7 +331,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
         when (vxs.io.scale_fire(p)) { buf(slot(req.bits.eg)) := port.resp }
         buf
       }
-      val issue_group = (vxs_iss.eidx >> vxs_iss.scale_lb.get) >> dLenOffBits
+      val issue_group = (vxs_iss.eidx >> vxs_iss.scale_lg.get) >> dLenOffBits
       val issue_slot = if (egsPerVReg == 1) 0.U else issue_group(log2Ceil(egsPerVReg) - 1, 0)
       vxu_iss.rvs1_scale.get := scale_buf(0)(issue_slot)
       vxu_iss.rvs2_scale.get := scale_buf(1)(issue_slot)

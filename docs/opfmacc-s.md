@@ -4,7 +4,9 @@
 scales sit in the register after it, so the instruction encoding is the same
 as `OPFMACC`'s and no new architectural state is added.
 
-Implemented in the OPU (configs with `useMxOPU`), commit b4af0b1.
+Implemented in the OPU (configs with `useMxOPU`), commit b4af0b1. In configs with scaled mode,
+`OPFMACC` with `vtype`'s scaled bit set is the same operation, and both honor
+the elements-per-scale-byte field ([scaled-mode.md](scaled-mode.md)).
 
 ## Encoding
 

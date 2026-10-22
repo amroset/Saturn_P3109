@@ -107,11 +107,13 @@ class PipelinedFaultCheck(edge: TLEdge, sgSize: Option[BigInt])(implicit p: Para
   when (!s0_inst.vmu && s0_inst.funct3 === OPIVI && s0_inst.funct6 === OPIFunct6.mvnrr.litValue.U) {
     s0_inst.emul := log2_up(s0_inst.imm5, 8)
   }
-  // OPFMACC.S reads each operand as a register pair (data, scales): EMUL 2
-  // makes every hazard check cover the scale register. Rule A: the scales of
-  // vN are in vN+1, which OuterProductSequencer also assumes (tA, tB: rs | 1);
-  // a change of rule must change both.
-  when (!s0_inst.vmu && s0_inst.funct3 === OPFVV && s0_inst.funct6 === OPFFunct6.opfmaccs.litValue.U) {
+  // OPFMACC.S, and OPFMACC in scaled mode (vtype bit 11), read each operand as
+  // a register pair (data, scales): EMUL 2 makes every hazard check cover the
+  // scale register. Rule A: the scales of vN are in vN+1, which
+  // OuterProductSequencer also assumes (tA, tB: rs | 1); a change of rule must
+  // change both.
+  when (!s0_inst.vmu && s0_inst.funct3 === OPFVV && (s0_inst.funct6 === OPFFunct6.opfmaccs.litValue.U ||
+      (s0_inst.funct6 === OPFFunct6.opfmacc.litValue.U && s0_inst.vscaled))) {
     s0_inst.emul := 1.U
   }
 

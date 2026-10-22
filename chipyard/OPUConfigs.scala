@@ -24,6 +24,14 @@ class OPUV256D128P3109ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// OPU and vector unit with scaled mode (docs/scaled-mode.md)
+class OPUV256D128P3109BlockShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109BlockParams) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class OPUV256D128P3109FiniteShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109FiniteParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++

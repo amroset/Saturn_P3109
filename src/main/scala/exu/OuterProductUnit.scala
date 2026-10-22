@@ -298,6 +298,11 @@ class OuterProductControl(implicit p: Parameters) extends CoreBundle()(p) with H
   val sb_piece = UInt(log2Ceil(egsPerVReg).W)
   val sa_fill  = Bool() // store in_l at sa_entry, sa_piece
   val sb_fill  = Bool() // store in_t at sb_entry, sb_piece
+  // Scaled mode: E rows (columns) share a scale byte, row r taking byte
+  // r >> scale_lg; sa_quad/sb_quad are the issue's row/column quadrant
+  val scale_lg = if (vParams.scaledMode) Some(UInt(3.W)) else None
+  val sa_quad  = if (vParams.scaledMode) Some(UInt(log2Ceil(egsPerVReg).W)) else None
+  val sb_quad  = if (vParams.scaledMode) Some(UInt(log2Ceil(egsPerVReg).W)) else None
 
   // same values broadcast horizontally
   val mrf_idx    = Vec(yDim, UInt(cellRegIdxBits.W)) 
@@ -344,11 +349,19 @@ class OuterProductUnit(implicit p: Parameters) extends CoreModule()(p) with HasO
   val sB_bytes = scale_buf(io.op.sb_entry)(io.op.sb_piece).asTypeOf(Vec(xDim * clusterXdim, UInt(8.W)))
   val scale_l = Wire(Vec(yDim, Vec(clusterYdim, UInt(8.W))))
   val scale_t = Wire(Vec(xDim, Vec(clusterXdim, UInt(8.W))))
+  // The cell at position `local` of quadrant `quad` is row (column)
+  // dLenB * quad + local of the tile; in scaled mode it takes scale byte
+  // (dLenB * quad + local) >> scale_lg, inside the piece the sequencer chose
+  // (with scale_lg = 0, byte `local` of piece `quad`, as OPFMACC.S)
+  def pick(bytes: Vec[UInt], quad: Option[UInt], local: Int): UInt = quad match {
+    case Some(q) => bytes((((q << dLenOffBits) +& local.U) >> io.op.scale_lg.get)(dLenOffBits - 1, 0))
+    case None    => bytes(local)
+  }
   for (i <- 0 until yDim; j <- 0 until clusterYdim) {
-    scale_l(i)(j) := Mux(io.op.scaled, sA_bytes(i + j * yDim), 128.U)
+    scale_l(i)(j) := Mux(io.op.scaled, pick(sA_bytes, io.op.sa_quad, i + j * yDim), 128.U)
   }
   for (i <- 0 until xDim; j <- 0 until clusterXdim) {
-    scale_t(i)(j) := Mux(io.op.scaled, sB_bytes(i + j * xDim), 128.U)
+    scale_t(i)(j) := Mux(io.op.scaled, pick(sB_bytes, io.op.sb_quad, i + j * xDim), 128.U)
   }
 
   for (j <- 0 until xDim) {

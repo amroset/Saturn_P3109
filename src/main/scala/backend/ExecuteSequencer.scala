@@ -219,15 +219,15 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.seq_hazard.bits.vat := inst.vat
 
   // Scaled mode: element eidx of a block operand takes scale byte
-  // eidx >> log2(B) of its scale register (rs1|1, rs2|1, rd|1; rule A, as
+  // eidx >> log2(E) of its scale register, E elements sharing a scale byte (rs1|1, rs2|1, rd|1; rule A, as
   // OuterProductSequencer's rs | 1). Each port's buffer keeps the element group
   // it last read, across instructions, until a register-file write to that
   // group (write_snoop) drops it. It serves an issue if it holds the group the
   // issue needs and no older instruction has yet to write that group. Before
   // an issue some port cannot serve, one cycle reads the missing groups on the
-  // same three ports (with B = 1, once per 8-bit element group; with B >= 2,
+  // same three ports (with E = 1, once per 8-bit element group; with E >= 2,
   // once per LMUL-1 instruction; with a reused scale register, never).
-  val sc_eidx = eidx >> inst.vscale_lb
+  val sc_eidx = eidx >> inst.vscale_lg
   val sc_en   = Seq(inst.scaled_vs1, inst.scaled_vs2, inst.scaled_vd)
   val sc_eg   = Seq(inst.rs1, inst.rs2, inst.rd).map(r => getEgId(r | 1.U, sc_eidx, 0.U, false.B))
   val sc_miss = (0 until 3).map { p =>
@@ -347,7 +347,7 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.iss.bits.scaled_vs1.foreach(_ := inst.scaled_vs1)
   io.iss.bits.scaled_vs2.foreach(_ := inst.scaled_vs2)
   io.iss.bits.scaled_vd.foreach(_ := inst.scaled_vd)
-  io.iss.bits.scale_lb.foreach(_ := inst.vscale_lb)
+  io.iss.bits.scale_lg.foreach(_ := inst.vscale_lg)
   // No instruction selects the sweep's extra formats yet, so these bits are
   // zero. dontTouch stops firtool from removing the extra formats from the units.
   io.iss.bits.p3109_fmt_hi.foreach(f => f := dontTouch(WireInit(0.U(f.getWidth.W))))

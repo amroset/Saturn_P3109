@@ -17,6 +17,12 @@
 //   gram   Tests vs1 = vs2. C = (sA x A)(sA x A)^T, so tiles m0 and m3 use
 //          one register as both operands, and the cache fills that scale
 //          register through both read ports in the same cycle.
+// Built with -DSCALEDMODE (configs with scaled mode, docs/scaled-mode.md),
+// the same tests use OPFMACC with vtype's scaled bit (bit 11) instead of
+// OPFMACC.S, and one more runs:
+//   coarse (gemm's kernel) 32 rows (columns) share a scale byte: vtype bits
+//          14:12 = 5, so row r takes byte r >> 5, byte 0 of each scale
+//          register; the other 31 bytes are random codes the OPU must ignore.
 #include <stdio.h>
 #include <stdint.h>
 #include "rvv_mx.h"
@@ -37,9 +43,20 @@ extern uint8_t gram0_a[], gram0_sa[], gram1_a[], gram1_sa[];
 extern uint32_t gram0_c[], gram0_out[], gram1_c[], gram1_out[];
 
 #define LD(v, p) asm volatile("vle8.v " v ", (%0)" : : "r"(p))
+
+#ifdef SCALEDMODE
+#if defined(FP4)
+#error "the FP4 test sets vtype to code 6 without the scaled bit"
+#endif
+#define MACC OPFMACC
+DATA(coarse0) DATA(coarse1)
+static unsigned long scale_lg; // log2 of the rows (columns) per scale byte
+#else
+#define MACC OPFMACCS
+#endif
 #define K22(A0, A1, B0, B1, k) LD(#A0, &a[M * (k)]); LD(#A1, &a[M * (k) + 32]); \
     LD(#B0, &b[N * (k)]); LD(#B1, &b[N * (k) + 32]); \
-    OPFMACCS(m0, B0, A0); OPFMACCS(m1, B1, A0); OPFMACCS(m2, B0, A1); OPFMACCS(m3, B1, A1);
+    MACC(m0, B0, A0); MACC(m1, B1, A0); MACC(m2, B0, A1); MACC(m3, B1, A1);
 
 // Tiles are cleared and read out through v12..v15. A tile move's vd must be
 // below v16: bit 4 of the field is the OPU's column flag, and for OPMVOUT it
@@ -47,8 +64,14 @@ extern uint32_t gram0_c[], gram0_out[], gram1_c[], gram1_out[];
 static void start(int altfmt) {
     asm volatile("vsetvli x0, %0, e32, m4, ta, ma\n\tvmv.v.i v12, 0" : : "r"(32));
     OPMVINBCAST(m0, v12); OPMVINBCAST(m1, v12); OPMVINBCAST(m2, v12); OPMVINBCAST(m3, v12);
+#ifdef SCALEDMODE
+    // e8 m1 ta ma, altfmt, scaled (bit 11), rows per scale byte (bits 14:12)
+    unsigned long vt = 0x8C0UL | ((unsigned long)altfmt << 8) | (scale_lg << 12);
+    asm volatile("vsetvl x0, %0, %1" : : "r"(32UL), "r"(vt));
+#else
     if (altfmt) VSETVLI_ALTFMT_X0(32, SEW_E8, LMUL_M1, 1);
     else        VSETVLI_ALTFMT_X0(32, SEW_E8, LMUL_M1, 0);
+#endif
 }
 
 // Saves the results from the OPU to memory: row r of each tile is moved into
@@ -112,10 +135,10 @@ static void gram(const uint8_t *a, const uint8_t *sa, uint32_t *c, int altfmt) {
         for (int k = blk * BLK; k < (blk + 1) * BLK; k++) {
             LD("v2", &a[M * k]);
             LD("v4", &a[M * k + 32]);
-            OPFMACCS(m0, v2, v2);
-            OPFMACCS(m1, v4, v2);
-            OPFMACCS(m2, v2, v4);
-            OPFMACCS(m3, v4, v4);
+            MACC(m0, v2, v2);
+            MACC(m1, v4, v2);
+            MACC(m2, v2, v4);
+            MACC(m3, v4, v4);
         }
     }
     finish(c);
@@ -170,6 +193,13 @@ int main(void) {
 #ifdef FP4
     gemm4(gemm4_a, gemm4_b, gemm4_sa, gemm4_sb, gemm4_out);
     failed |= check("gemm4", gemm4_out, gemm4_c, "FP4");
+#endif
+#ifdef SCALEDMODE
+    scale_lg = 5;
+    gemm(coarse0_a, coarse0_b, coarse0_sa, coarse0_sb, coarse0_out, 0);
+    failed |= check("coarse", coarse0_out, coarse0_c, "altfmt 0");
+    gemm(coarse1_a, coarse1_b, coarse1_sa, coarse1_sb, coarse1_out, 1);
+    failed |= check("coarse", coarse1_out, coarse1_c, "altfmt 1");
 #endif
     printf(failed ? "FAILED\n" : "passed\n");
     return failed;
