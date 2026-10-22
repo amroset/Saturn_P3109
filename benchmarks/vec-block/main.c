@@ -115,8 +115,42 @@ static int check(const char *name, const void *got, const void *want, int esize)
 	}
 #include "tests.h"
 
+// Scales kept across instructions (step 3): a buffered scale group must be
+// dropped when its register is written, by any unit. Fill the buffer with
+// wrong scales (code 0), overwrite v3 with the right ones by `copy` (vmv.v.v,
+// or vfsgnj.vv at SEW 16), and expect the right result; then repeat with no
+// write in between (a buffer hit). Uses the vfwmul.vv B = 1 test's arrays.
+#define T wmul_vv_a0_rne_b1
+#define CAT_(a, b) a##b
+#define CAT(a, b) CAT_(a, b)
+static uint8_t wrong[VL] __attribute__((aligned(64)));
+#define EVICT(fn, setcopy, copy) \
+	static int fn(void) { \
+		int bad = 0; \
+		SETFRM(0); \
+		for (int pass = 0; pass < 2; pass++) { \
+			for (size_t i = 0; i < N; i += VL) { \
+				vset(VT8(0, 0)); \
+				LD8("v2", &CAT(T, _a)[i]); LD8("v6", &CAT(T, _sa)[i]); LD8("v3", wrong); \
+				LD8("v4", &CAT(T, _b)[i]); LD8("v5", &CAT(T, _sb)[i]); \
+				vset(VT8S(0, 0)); asm volatile("vfwmul.vv v8, v2, v4"); \
+				setcopy; asm volatile(copy); \
+				vset(VT8S(0, 0)); asm volatile("vfwmul.vv v8, v2, v4"); \
+				if (pass) asm volatile("vfwmul.vv v8, v2, v4"); /* a hit */ \
+				vset(VT16); ST16("v8", &r16[i]); \
+			} \
+			bad |= check(pass ? #fn " (and a hit)" : #fn, r16, CAT(T, _out), 2); \
+		} \
+		return bad; \
+	}
+EVICT(evict_vmv, vset(VT8(0, 0)), "vmv.v.v v3, v6")
+EVICT(evict_vfsgnj, asm volatile("vsetvli x0, %0, e16, m1, ta, ma" : : "r"(16UL)), "vfsgnj.vv v3, v6, v6")
+#undef T
+
 int main(void) {
 	int failed = 0;
+	failed |= evict_vmv();
+	failed |= evict_vfsgnj();
 #undef K8
 #undef KW
 #undef KWW

@@ -60,6 +60,7 @@ bmarks = \
 	vtype-fmt \
 	vec-block \
 	vec-block-timing \
+	vec-block-kernels \
 	opu-gemm \
 	opu-m4-gemm \
 	opu-m4-memcopy \

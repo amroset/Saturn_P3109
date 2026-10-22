@@ -49,6 +49,8 @@ static unsigned long drain(void) {
 	}
 // 8-bit result (scales of vd in vd+1)
 PATTERN(p_mul,  "vfmul.vv v8, v2, v4", "vfmul.vv v10, v2, v4", "vfmul.vv v12, v2, v4", "vfmul.vv v14, v2, v4")
+// one destination: its scales (v9) are reused, at the cost of a WAW chain
+PATTERN(p_mul1, "vfmul.vv v8, v2, v4", "vfmul.vv v8, v2, v4", "vfmul.vv v8, v2, v4", "vfmul.vv v8, v2, v4")
 PATTERN(p_macc, "vfmacc.vv v8, v4, v2", "vfmacc.vv v10, v4, v2", "vfmacc.vv v12, v4, v2", "vfmacc.vv v14, v4, v2")
 // BF16 result (widening)
 PATTERN(p_wmul, "vfwmul.vv v16, v2, v4", "vfwmul.vv v18, v2, v4", "vfwmul.vv v20, v2, v4", "vfwmul.vv v22, v2, v4")
@@ -80,6 +82,7 @@ int main(void) {
 	asm volatile("vsetvli x0, %0, e8, m8, ta, ma\n\tvmv.v.i v0, 0\n\tvmv.v.i v8, 0\n\tvmv.v.i v16, 0\n\tvmv.v.i v24, 0"
 	             : : "r"(256UL));
 	report("mul", p_mul);
+	report("mul1", p_mul1);
 	report("macc", p_macc);
 	report("wmul", p_wmul);
 	report("wcvt", p_wcvt);
