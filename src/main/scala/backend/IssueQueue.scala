@@ -33,11 +33,13 @@ class IssueQueue(depth: Int, nSeqs: Int)(implicit p: Parameters) extends CoreMod
       val vd_arch_mask  = get_arch_mask(e.bits.rd , vd_lmul )
       val vs1_arch_mask = get_arch_mask(e.bits.rs1, vs1_lmul)
       val vs2_arch_mask = get_arch_mask(rs2       , vs2_lmul)
-      // scaled mode: the scale registers, read but never written
+      // scaled mode: the scale registers, read but never written (a group of
+      // LMUL registers after each block operand's data group)
+      val sc_lmul = if (vParams.sharedScaleRegs) 0.U else scaleLmul(e.bits.vconfig.vtype)
       val scale_reads = if (vParams.scaledMode) Seq(
-        (e.bits.scaled_vs1, get_arch_mask(e.bits.rs1 | 1.U, 0.U)),
-        (e.bits.scaled_vs2, get_arch_mask(rs2 | 1.U, 0.U)),
-        (e.bits.scaled_vd , get_arch_mask(e.bits.rd | 1.U, 0.U))
+        (e.bits.scaled_vs1, get_arch_mask(scaleRegOf(0, e.bits.rs1, sc_lmul), sc_lmul)),
+        (e.bits.scaled_vs2, get_arch_mask(scaleRegOf(1, rs2, sc_lmul), sc_lmul)),
+        (e.bits.scaled_vd , get_arch_mask(scaleRegOf(2, e.bits.rd, sc_lmul), sc_lmul))
       ) else Nil
       h.bits.rintent := (Seq(
         (e.bits.renv1, vs1_arch_mask),

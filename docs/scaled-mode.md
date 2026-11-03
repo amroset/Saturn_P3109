@@ -33,7 +33,12 @@ With R = VLEN/8: element i takes byte i >> log2(E). Bytes past R/E are ignored;
 with E ≥ R, byte 0 scales the whole register. A destination's scales are read,
 not written: they are the result block's scale, an input (P3109 §5.7).
 
-- vN must be even, and LMUL 1. Other settings are reserved; Saturn does not trap them.
+- At LMUL L, a block operand's data group vN..vN+L−1 (N a multiple of L) has
+  its scales in the group after it, from vN+L (vN+1 at LMUL 1); element i of
+  the group takes byte i >> log2(E) of that scale area. Fractional LMUL counts
+  as 1. Other placements are reserved; Saturn does not trap them.
+- Along the blocks (one scale per E ≥ 16 consecutive elements), LMUL > 1 lets
+  one scale-register load serve several blocks (`benchmarks/vec-block-lmul`).
 - A scalar (`.vf`) operand and a BF16 operand are not blocks: their scale is 1.
 - Scale codes: 0 is zero, 255 is NaN, c is 2^(c−128) (as for `OPFMACC.S`).
 

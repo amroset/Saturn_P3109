@@ -465,6 +465,15 @@ case class VectorParams(
   p3109: Option[P3109Formats] = None, // IEEE P3109 in place of OCP FP8 (FPConv, FMA and OPU)
   useMxOPU: Boolean = false,
   opuFP4: Boolean = false, // P3109 Binary4p2sf in the OPU, as element-format code 6 (VType.fmt_hi)
+  // Scaled mode: scale registers each operand position's scale buffer holds
+  scaleBufRegs: Int = 1,
+  // Evaluation only (explicit-operand study): operands take their scales from
+  // fixed registers, vs1 from v31, vs2 from v30, vd from v29, instead of vN+1
+  // (rule A), as a kernel would that names one shared scale register per operand
+  sharedScaleRegs: Boolean = false,
+  // Evaluation only (area study): rule A at LMUL 1 only, scales always in vN+1 as
+  // one register; the logic a scale-register field in the instruction would need
+  scaleLmul1: Boolean = false,
 
   // for comparisons only
   hazardingMultiplier: Int = 0,
@@ -521,6 +530,7 @@ case class VectorParams(
   // above altfmt (bits 10:9 being the element-format code's upper bits, used
   // by opuFP4).
   def scaledMode = p3109.exists(_.block)
+  require(scaleBufRegs >= 1 && (scaleBufRegs & (scaleBufRegs - 1)) == 0, "scaleBufRegs must be a power of two")
   def vtypeFmtBits = if (scaledMode) 6 else if (opuFP4) 2 else 0
 }
 
@@ -546,6 +556,15 @@ trait HasVectorParams extends HasVectorConsts { this: HasCoreParameters =>
   def dmemTagBits = log2Ceil(vParams.vlifqEntries.max(vParams.vsifqEntries))
   def sgmemTagBits = log2Ceil(vParams.vsgifqEntries)
   def egsPerVReg = vLen / dLen
+  // Scaled mode: the first scale register of operand position p (0 vs1, 1 vs2,
+  // 2 vd) whose data group starts at r, LMUL 2^lmul: rule A puts the scales in
+  // the group after the data, r + 2^lmul (r | 1 at LMUL 1), or a fixed
+  // register (sharedScaleRegs, LMUL 1 only)
+  def scaleRegOf(p: Int, r: UInt, lmul: UInt): UInt =
+    if (vParams.sharedScaleRegs) (31 - p).U(5.W) else (r +& (1.U << lmul))(4, 0)
+  // LMUL of a block operand (8-bit, so EMUL = LMUL), as log2; fractional is 1
+  def scaleLmul(vtype: VType): UInt =
+    if (vParams.scaleLmul1) 0.U else Mux(vtype.vlmul_sign, 0.U, vtype.vlmul_mag)
   def egsTotal = (vLen / dLen) * 32
   def vrfBankBits = log2Ceil(vParams.vrfBanking)
   def lsiqIdBits = log2Ceil(vParams.vliqEntries.max(vParams.vsiqEntries))

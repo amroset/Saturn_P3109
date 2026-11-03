@@ -130,6 +130,32 @@ class P3109BlockV256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// Explicit-operand study (notes: vector-scaled-mode.md): the scale buffer
+// holding four registers per operand position, and, for evaluation only,
+// operands taking their scales from fixed registers (v31 vs1, v30 vs2, v29 vd)
+// as kernels would with one shared scale register per operand
+class P3109BlockBuf4V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockParams.copy(scaleBufRegs = 4)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockSharedV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockParams.copy(sharedScaleRegs = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// Evaluation only (area study): rule A without LMUL > 1 support
+class P3109BlockLmul1V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockParams.copy(scaleLmul1 = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class P3109BlockFiniteV256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockFiniteParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++

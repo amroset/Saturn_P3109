@@ -22,8 +22,10 @@ class ExecuteSequencerIO(maxDepth: Int, nFUs: Int)(implicit p: Parameters) exten
   val acc_ready = Output(Bool())
 
   // Scaled mode: this cycle's reads are scale element groups; for each port
-  // (rvs1, rvs2, rvd) that read one, the backend buffers it
+  // (rvs1, rvs2, rvd) that read one, the backend buffers it in slot
+  // scale_slot. On an issue, scale_slot is the slot holding each port's scales.
   val scale_fire = Output(Vec(3, Bool()))
+  val scale_slot = Output(Vec(3, UInt(log2Ceil(vParams.scaleBufRegs * (vLen / dLen)).max(1).W)))
   // every register-file write, to invalidate buffered scales
   val write_snoop = Input(Vec(2 * vParams.vrfBanking, Valid(UInt(log2Ceil(egsTotal).W))))
 }
@@ -72,15 +74,25 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   val eidx      = Reg(UInt(log2Ceil(maxVLMax).W))
   val acc_fold  = Reg(Bool())
   val acc_fold_id = Reg(UInt(log2Ceil(dLenB).W))
-  // Scaled mode: the scale registers (read hazards), and for each scale port
-  // (rs1|1, rs2|1, rd|1) the element groups the backend's buffer holds, one
-  // entry per group of a register (direct-mapped by the group's position in
-  // its register), kept across instructions until a write to it
-  // (sc_tag, if sc_tag_valid)
+  // Scaled mode bookkeeping. Sizes for VLEN 256, dLen 128: a register is
+  // egsPerVReg = 2 element groups of 16 bytes, the register file egsTotal = 64
+  // groups, a group's id is 0..63 = register * 2 + half.
+  // - rsc_mask: one bit per group, set for the scale groups this instruction
+  //   reads; a read hazard while it is in the sequencer.
+  // - Per scale port p (0 vs1, 1 vs2, 2 vd) the backend's scale buffer has
+  //   nScSlots = scaleBufRegs * egsPerVReg slots (2 by default: one register),
+  //   each holding one scale group. sc_tag(p)(s) is the id of the group in
+  //   slot s, valid if sc_tag_valid(p)(s); any slot may hold any group. A slot
+  //   stays valid across instructions until a register-file write to its
+  //   group (write_snoop). With no slot free, a refill replaces slot
+  //   sc_ptr(p), which then advances (round-robin).
+  //   Example: vfncvt v8, v16 at E = 1 reads vd's scales v9, groups 18 and 19;
+  //   after its first issue port 2 holds sc_tag(2) = {18, 19}.
+  val nScSlots  = vParams.scaleBufRegs * egsPerVReg
   val rsc_mask  = if (vParams.scaledMode) Reg(UInt(egsTotal.W)) else 0.U(egsTotal.W)
-  val sc_tag_valid = RegInit(VecInit(Seq.fill(3)(VecInit(Seq.fill(egsPerVReg)(false.B)))))
-  val sc_tag    = Reg(Vec(3, Vec(egsPerVReg, UInt(log2Ceil(egsTotal).W))))
-  def scSlot(eg: UInt): UInt = if (egsPerVReg == 1) 0.U else eg(log2Ceil(egsPerVReg) - 1, 0)
+  val sc_tag_valid = RegInit(VecInit(Seq.fill(3)(VecInit(Seq.fill(nScSlots)(false.B)))))
+  val sc_tag    = Reg(Vec(3, Vec(nScSlots, UInt(log2Ceil(egsTotal).W))))
+  val sc_ptr    = RegInit(VecInit(Seq.fill(3)(0.U(log2Ceil(nScSlots).max(1).W))))
 
   val compress = inst.opmf6 === OPMFunct6.compress && usesCompress.B
   val acc_copy = (vd_eew === 3.U && (dLenB == 8).B) || elementwise
@@ -157,7 +169,10 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
       (dis_inst.scaled_vs1, dis_inst.rs1),
       (dis_inst.scaled_vs2, dis_inst.rs2),
       (dis_inst.scaled_vd , dis_inst.rd)
-    ).map { case (en, r) => Mux(en, FillInterleaved(egsPerVReg, get_arch_mask(r | 1.U, 0.U)), 0.U) }.reduce(_|_)
+    ).zipWithIndex.map { case ((en, r), p) =>
+      val lmul = if (vParams.sharedScaleRegs) 0.U else scaleLmul(dis_inst.vconfig.vtype)
+      Mux(en, FillInterleaved(egsPerVReg, get_arch_mask(scaleRegOf(p, r, lmul), lmul)), 0.U)
+    }.reduce(_|_)
     head          := true.B
     acc_fold      := false.B
     acc_fold_id   := 0.U
@@ -219,21 +234,31 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   io.seq_hazard.bits.vat := inst.vat
 
   // Scaled mode: element eidx of a block operand takes scale byte
-  // eidx >> log2(E) of its scale register, E elements sharing a scale byte (rs1|1, rs2|1, rd|1; rule A, as
-  // OuterProductSequencer's rs | 1). Each port's buffer keeps the element group
-  // it last read, across instructions, until a register-file write to that
-  // group (write_snoop) drops it. It serves an issue if it holds the group the
+  // eidx >> log2(E) of its scale register (E elements sharing a scale byte):
+  // rs1|1, rs2|1, rd|1 by rule A, as OuterProductSequencer's rs | 1
+  // (scaleRegOf). A port's buffer serves an issue if a slot holds the group the
   // issue needs and no older instruction has yet to write that group. Before
   // an issue some port cannot serve, one cycle reads the missing groups on the
   // same three ports (with E = 1, once per 8-bit element group; with E >= 2,
   // once per LMUL-1 instruction; with a reused scale register, never).
   val sc_eidx = eidx >> inst.vscale_lg
   val sc_en   = Seq(inst.scaled_vs1, inst.scaled_vs2, inst.scaled_vd)
-  val sc_eg   = Seq(inst.rs1, inst.rs2, inst.rd).map(r => getEgId(r | 1.U, sc_eidx, 0.U, false.B))
-  val sc_miss = (0 until 3).map { p =>
-    val slot = scSlot(sc_eg(p))
-    sc_en(p) && !(sc_tag_valid(p)(slot) && sc_tag(p)(slot) === sc_eg(p) && !io.older_writes(sc_eg(p)))
+  val sc_eg   = Seq(inst.rs1, inst.rs2, inst.rd).zipWithIndex.map { case (r, p) =>
+    getEgId(scaleRegOf(p, r, scaleLmul(inst.vconfig.vtype)), sc_eidx, 0.U, false.B)
   }
+  val sc_hit  = Wire(Vec(3, Bool()))
+  val sc_slot = Wire(Vec(3, UInt(log2Ceil(nScSlots).max(1).W)))
+  for (p <- 0 until 3) {
+    val held  = VecInit((0 until nScSlots).map(s => sc_tag_valid(p)(s) && sc_tag(p)(s) === sc_eg(p))).asUInt
+    val empty = VecInit(sc_tag_valid(p).map(!_)).asUInt
+    sc_hit(p) := held.orR && !io.older_writes(sc_eg(p))
+    // the slot an issue reads, or a fill writes: the one holding the group
+    // (also when stale, so a group never sits in two slots), else an empty
+    // one, else the round-robin one
+    sc_slot(p) := Mux(held.orR, PriorityEncoder(held), Mux(empty.orR, PriorityEncoder(empty), sc_ptr(p)))
+  }
+  io.scale_slot := sc_slot
+  val sc_miss = (0 until 3).map(p => sc_en(p) && !sc_hit(p))
   val sphase = if (vParams.scaledMode) valid && sc_miss.reduce(_||_) else false.B
   val ren1 = Mux(sphase, sc_miss(0), renv1)
   val ren2 = Mux(sphase, sc_miss(1), renv2)
@@ -279,12 +304,13 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   for (p <- 0 until 3) {
     io.scale_fire(p) := sc_fire && sc_miss(p)
     when (io.scale_fire(p)) {
-      sc_tag_valid(p)(scSlot(sc_eg(p))) := true.B
-      sc_tag(p)(scSlot(sc_eg(p))) := sc_eg(p)
+      sc_tag_valid(p)(sc_slot(p)) := true.B
+      sc_tag(p)(sc_slot(p)) := sc_eg(p)
+      when (sc_slot(p) === sc_ptr(p)) { sc_ptr(p) := sc_ptr(p) + 1.U }
     }
-    for (g <- 0 until egsPerVReg) {
-      when (io.write_snoop.map(w => w.valid && w.bits === sc_tag(p)(g)).reduce(_||_)) {
-        sc_tag_valid(p)(g) := false.B
+    for (s <- 0 until nScSlots) {
+      when (io.write_snoop.map(w => w.valid && w.bits === sc_tag(p)(s)).reduce(_||_)) {
+        sc_tag_valid(p)(s) := false.B
       }
     }
   }

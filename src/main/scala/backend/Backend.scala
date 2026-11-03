@@ -318,24 +318,20 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     vxu_iss.rvs2_data := rvs2_data
     vxu_iss.rvd_data := rvd_data
 
-    // Scaled mode: each port's scale reads, one entry per element group of a
-    // register, by the group's position (ExecuteSequencer's sc_tag), kept for
-    // later issues, even of later instructions. An issue takes the entry of the
-    // group holding scale byte eidx >> log2(E).
+    // Scaled mode: each port's scale reads, in the slots the sequencer picks
+    // (scale_slot), kept for later issues, even of later instructions; an
+    // issue takes the slot the sequencer names for it
     vxs.io.write_snoop := vrf.io.write_snoop
     if (vParams.scaledMode) {
-      def slot(eg: UInt): UInt = if (egsPerVReg == 1) 0.U else eg(log2Ceil(egsPerVReg) - 1, 0)
-      val ports = Seq((vrf.io.vxs(i).rvs1, vxs.io.rvs1), (vrf.io.vxs(i).rvs2, vxs.io.rvs2), (vrf.io.vxs(i).rvd, vxs.io.rvd))
-      val scale_buf = ports.zipWithIndex.map { case ((port, req), p) =>
-        val buf = Reg(Vec(egsPerVReg, UInt(dLen.W)))
-        when (vxs.io.scale_fire(p)) { buf(slot(req.bits.eg)) := port.resp }
+      val ports = Seq(vrf.io.vxs(i).rvs1, vrf.io.vxs(i).rvs2, vrf.io.vxs(i).rvd)
+      val scale_buf = ports.zipWithIndex.map { case (port, p) =>
+        val buf = Reg(Vec(vParams.scaleBufRegs * egsPerVReg, UInt(dLen.W)))
+        when (vxs.io.scale_fire(p)) { buf(vxs.io.scale_slot(p)) := port.resp }
         buf
       }
-      val issue_group = (vxs_iss.eidx >> vxs_iss.scale_lg.get) >> dLenOffBits
-      val issue_slot = if (egsPerVReg == 1) 0.U else issue_group(log2Ceil(egsPerVReg) - 1, 0)
-      vxu_iss.rvs1_scale.get := scale_buf(0)(issue_slot)
-      vxu_iss.rvs2_scale.get := scale_buf(1)(issue_slot)
-      vxu_iss.rvd_scale.get  := scale_buf(2)(issue_slot)
+      vxu_iss.rvs1_scale.get := scale_buf(0)(vxs.io.scale_slot(0))
+      vxu_iss.rvs2_scale.get := scale_buf(1)(vxs.io.scale_slot(1))
+      vxu_iss.rvd_scale.get  := scale_buf(2)(vxs.io.scale_slot(2))
     }
 
     val rvs1_elem = extractElem(rvs1_data, vxs_iss.rvs1_eew, vxs_iss.eidx)
