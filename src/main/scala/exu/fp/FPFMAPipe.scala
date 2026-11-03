@@ -664,20 +664,20 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
     }
 
     // vfdot4 (P3109Formats.dot, docs/vfdot4.md): one ScaledDotLane per FP32
-    // element. In scaled mode vs2 is a block; so is vs1 (.vv), while .vf's
-    // scalar carries its four elements in bits 31:0 and their scale in 39:32.
+    // element. In scaled mode vs2 is a block; so is vs1 (.vv), while .vx's
+    // x[rs1] carries its four elements in bits 31:0 and their scale in 39:32.
     if (p3109.get.dot) {
       def isDot(b: ExecuteMicroOp) = b.isOpf && b.funct6 === OPFFunct6.fdot4.litValue.U
-      val vf = in.funct3 === VectorConsts.OPFVF
+      val vx = in.funct3 === VectorConsts.OPFVF // vfdot4.vx
       val dots = Seq.tabulate(dLenB / 4) { j =>
         val lane = Module(new ScaledDotLane(depth, p3109.get))
         def elem(data: UInt) = extractElem(data, 2.U, eidx + j.U)(31, 0)
         def scaleOf(data: UInt) = extractElem(data, 0.U, (eidx + j.U) >> in.scale_lg.get)(7, 0)
         lane.io.a := elem(in.rvs2_data)
-        lane.io.b := Mux(vf, in.scalar(31, 0), elem(in.rvs1_data))
+        lane.io.b := Mux(vx, in.scalar(31, 0), elem(in.rvs1_data))
         lane.io.c := elem(in.rvd_data)
         lane.io.sa := Mux(in.scaled_vs2.get, scaleOf(in.rvs2_scale.get), 128.U)
-        lane.io.sb := Mux(vf, Mux(in.scaled_vs2.get, in.scalar(39, 32), 128.U),
+        lane.io.sb := Mux(vx, Mux(in.scaled_vs2.get, in.scalar(39, 32), 128.U),
                               Mux(in.scaled_vs1.get, scaleOf(in.rvs1_scale.get), 128.U))
         lane.io.frm := in.frm
         lane.io.altfmt := altfmt

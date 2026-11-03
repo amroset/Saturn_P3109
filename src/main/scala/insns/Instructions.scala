@@ -214,8 +214,8 @@ object FCVT_NRW_BF16 extends VectorInstruction { val props = Seq(F6(OPFFunct6.fu
 // and the FP8 <-> BF16 conversions; not the reductions, which combine elements
 // (P3109 5.6 is not elementwise), nor compares, min/max, sign injection, moves.
 // vfdot4 (P3109Formats.dot, docs/vfdot4.md): at SEW 32, vd[i] += sum of the
-// four products of the 8-bit elements packed in lane i of vs2 and vs1 (.vf:
-// bits 31:0 of the scalar, its scale in bits 39:32), rounded once
+// four products of the 8-bit elements packed in lane i of vs2 and vs1 (.vx:
+// bits 31:0 of x[rs1], their scale in bits 39:32), rounded once
 object FDOT4     extends OPFInstruction    { val props = Seq(F6(OPFFunct6.fdot4)    , FPAdd.Y, FPMul.Y, FPSwapVdV2.N, FPFMACmd(0.U(2.W)), ReadsVD.Y, FPDot4.Y) }
 
 object ScaledMode {

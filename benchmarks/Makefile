@@ -65,6 +65,7 @@ bmarks = \
 	vec-block-explicit \
 	vec-block-lmul \
 	vec-block-unroll \
+	vec-dot4 \
 	opu-gemm \
 	opu-m4-gemm \
 	opu-m4-memcopy \

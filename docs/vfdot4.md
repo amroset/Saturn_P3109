@@ -14,7 +14,7 @@ OP-V, funct6 = 0x35 (reserved in RVV 1.0), SEW = 32, any LMUL:
 | Form | funct3 | Operands |
 |---|---|---|
 | `vfdot4.vv vd, vs2, vs1, vm` | OPFVV | lane i of vs2 and of vs1: four elements each |
-| `vfdot4.vf vd, vs2, rs1, vm` | OPFVF | lane i of vs2; f[rs1] bits 31:0: four elements, the same for every lane |
+| `vfdot4.vx vd, vs2, rs1, vm` | OPFVF | lane i of vs2; x[rs1] bits 31:0: four elements, the same for every lane |
 
 Element j of a lane is in bits 8j+7:8j. `altfmt` selects the 8-bit format of
 all elements (binary8p4 or binary8p3), as at SEW 8.
@@ -38,10 +38,16 @@ The sum is exact and rounded once, to binary32, in `frm`. A zero result is +0
 - In scaled mode (`vtype` bit 11), vs2 is a block: lane i takes byte
   i >> log2(E) of the scale group that follows vs2's data group (vs2 + LMUL),
   as for every scaled instruction. In `.vv`, vs1 likewise (vs1 + LMUL).
-- In `.vf`, f[rs1] bits 39:32 hold the scalar's scale: the four elements and
-  their scale arrive together. A kernel packs them with integer instructions
-  (for MX data: once per block for the scale, once per instruction for the
-  elements).
+- In `.vx`, x[rs1] bits 39:32 hold the scalar's scale: the four elements and
+  their scale arrive together; bits 63:40 are ignored. A kernel packs them with
+  integer instructions (for MX data: the scale once per block, the elements
+  once per instruction).
+
+The scalar is an integer register, unlike RVV's `.vf` forms: four codes and a
+scale are packed bits, not a floating-point value, and the host core sends an
+FP register to a SEW-32 instruction as a NaN-boxed single (32 bits; Shuttle
+and Rocket pick the scalar's FP type from SEW), but an integer register at
+full width. The encoding stays in the FP space (funct3 OPFVF), so `frm` applies.
 
 The scales of all four elements of a lane are the same, so a block must hold
 whole lanes: a block size that is a multiple of 4.
@@ -49,7 +55,9 @@ whole lanes: a block size that is a multiple of 4.
 ## Saturn implementation
 
 - **Decode.** `FDOT4` (Instructions.scala), an FMA-family instruction at SEW 32
-  that reads vd. At dispatch, in scaled mode, vs2 and vs1 (`.vv`) are block
+  that reads vd. Its scalar form asks the core for x[rs1] (EarlyDecode), and
+  the frontend keeps that value instead of the FP one it takes for other OPF
+  instructions. At dispatch, in scaled mode, vs2 and vs1 (`.vv`) are block
   operands and vd is not (`FPDot4`, Backend.scala); hazards, scale reads and
   the scale buffers are then those of every scaled instruction.
 - **Datapath** (`ScaledDotLane`, ScaledDot.scala), one per FP32 lane of an
@@ -64,4 +72,7 @@ whole lanes: a block size that is a multiple of 4.
   Specials (NaN, infinite products, 0 × Inf, Inf − Inf, zero and NaN scales)
   bypass the integer sum.
 - **Tests.** `models/run_dot_check.sh`: the lane against exact rational
-  arithmetic (`dot_vectors.py`).
+  arithmetic (`dot_vectors.py`). `benchmarks/vec-dot4`: the instruction on the
+  SoC (`.vv`, `.vx`, both formats, five rounding modes, E = 1, 2, 8, LMUL 1, 2,
+  4, masked, scale-buffer invalidation; `-DSHARED` for the explicit-operand
+  emulation build).

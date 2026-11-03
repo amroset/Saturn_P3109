@@ -46,7 +46,8 @@ class SaturnShuttleFrontend(sgSize: Option[BigInt], edge: TLEdge)(implicit p: Pa
   pfc.io.s0.in.bits.phys    := !(io.core.status.dprv <= PRV.S.U && io.core.satp.mode(io.core.satp.mode.getWidth-1))
   io.core.ex.ready          := !ifc.io.busy && !(replayed && !io.issue.ready)
 
-  pfc.io.s1.rs1.valid := pfc.io.s1.inst.isOpf && !pfc.io.s1.inst.vmu
+  pfc.io.s1.rs1.valid := pfc.io.s1.inst.isOpf && !pfc.io.s1.inst.vmu &&
+    !(if (vParams.scaledDot) pfc.io.s1.inst.isDotVx else false.B) // vfdot4.vx keeps x[rs1]
   pfc.io.s1.rs1.bits := io.core.mem.frs1
   pfc.io.s1.kill := io.core.mem.kill || !RegEnable(io.core.ex.fire, io.core.ex.valid)
 

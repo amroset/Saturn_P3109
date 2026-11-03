@@ -42,7 +42,8 @@ class SaturnRocketFrontend(edge: TLEdge)(implicit p: Parameters) extends CoreMod
   pfc.io.s0.in.bits.phys    := false.B
   io.core.ex.ready          := !ifc.io.busy
 
-  pfc.io.s1.rs1.valid := pfc.io.s1.inst.isOpf && !pfc.io.s1.inst.vmu
+  pfc.io.s1.rs1.valid := pfc.io.s1.inst.isOpf && !pfc.io.s1.inst.vmu &&
+    !(if (vParams.scaledDot) pfc.io.s1.inst.isDotVx else false.B) // vfdot4.vx keeps x[rs1]
   pfc.io.s1.rs1.bits  := io.core.mem.frs1
   pfc.io.s1.kill      := io.core.killm
   io.core.mem.block_all    := ifc.io.busy || pfc.io.s2.internal_replay.valid

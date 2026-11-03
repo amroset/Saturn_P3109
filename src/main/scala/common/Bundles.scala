@@ -102,6 +102,8 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   def isOpi = funct3.isOneOf(OPIVV, OPIVI, OPIVX)
   def isOpm = funct3.isOneOf(OPMVV, OPMVX)
   def isOpf = funct3.isOneOf(OPFVV, OPFVF)
+  // vfdot4.vx (docs/vfdot4.md): its scalar is an integer register
+  def isDotVx = funct3 === OPFVF && funct6 === OPFFunct6.fdot4.litValue.U
 
   def opmf6 = Mux(isOpm, OPMFunct6(funct6), OPMFunct6.illegal)
   def opif6 = Mux(isOpi, OPIFunct6(funct6), OPIFunct6.illegal)

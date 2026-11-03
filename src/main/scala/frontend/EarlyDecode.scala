@@ -5,7 +5,7 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 import saturn.common._
-import saturn.insns.{VectorInstruction, VectorDecoder}
+import saturn.insns.{VectorInstruction, VectorDecoder, FPDot4}
 
 class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: Parameters) extends RocketVectorDecoder()(p) with HasVectorConsts {
 
@@ -51,11 +51,15 @@ class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: 
     io.read_rs1 := true.B
     io.read_rs2 := mop === mopStrided
   } .elsewhen (v_arith) {
+    // vfdot4.vx: the packed scalar (four 8-bit codes and a scale) is integer
+    // data, read from x[rs1] at full width
+    val dot_vx = if (supported_ex_insns.exists(_.lookup(FPDot4).value == 1))
+      funct3 === OPFVF && funct6 === OPFFunct6.fdot4.litValue.U else false.B
     io.legal := !io.vconfig.vtype.vill
-    io.read_rs1 := funct3.isOneOf(OPIVX, OPMVX)
-    io.read_frs1 := funct3 === OPFVF
+    io.read_rs1 := funct3.isOneOf(OPIVX, OPMVX) || dot_vx
+    io.read_frs1 := funct3 === OPFVF && !dot_vx
     io.write_rd := funct3 === OPMVV && OPMFunct6(funct6) === OPMFunct6.wrxunary0
     io.write_frd := funct3 === OPFVV && OPFFunct6(funct6) === OPFFunct6.wrfunary0
-    io.fp := funct3 === OPFVF
+    io.fp := funct3 === OPFVF && !dot_vx
   }
 }
