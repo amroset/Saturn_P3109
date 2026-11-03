@@ -8,6 +8,15 @@
 #include <stdint.h>
 #include "util.h"
 
+// Layout sweep: -DPAD=n shifts the code after this point by n bytes (with
+// -fno-toplevel-reorder).
+#ifndef PAD
+#define PAD 0
+#endif
+#define PSTR_(x) #x
+#define PSTR(x) PSTR_(x)
+asm(".text\n.skip " PSTR(PAD) "\n.section .text.startup,\"ax\",@progbits\n.skip " PSTR(PAD) "\n.text");
+
 #define VT8(sc) (0xC0UL | ((unsigned long)(sc) << 11)) // e8 m1 ta ma, scaled bit 11
 static inline void vset(unsigned long vt) {
 	asm volatile("vsetvl x0, %0, %1" : : "r"(32UL), "r"(vt));
