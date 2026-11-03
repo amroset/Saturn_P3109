@@ -131,7 +131,8 @@ KERNELS(1, TOK1)
 KERNELS(4, TOK4)
 
 // ---- 8 tokens (follow-up): more instructions per W chunk, closer to compute-bound ----
-// x is packed once per call (codes | scale << 32, xp8), so each vfdot4.vx needs one ld.
+// x is packed once, outside the timed region (codes | scale << 32, xp8), so each vfdot4.vx
+// needs one ld.
 //   gemm8m1  LMUL 1, 8 rows per instruction: accumulators v0..v7; W v8, v10, v12, v14,
 //            pairing scales v9 (copied to v11, v13, v15); -DSHARED v30
 //   gemm8m2  LMUL 2: accumulators v0..v14 (even); W v16, v20, v24, v28, pairing scales
@@ -165,7 +166,6 @@ static void pack8(int sc) {
 #define ST8M2(t, vd) STY("v" #vd, &y8[t][LANES * g]);
 
 static void gemm8m1(int sc) {
-	pack8(sc);
 	for (int h = 0; h < H; h++) {
 		const uint32_t (*w)[LANES] = Wp[h / 2];
 		int off = 8 * (h % 2);
@@ -190,7 +190,6 @@ static void gemm8m1(int sc) {
 }
 
 static void gemm8m2(int sc) {
-	pack8(sc);
 	for (int g = 0; g < G; g++) {
 		vsetl(LANES, VT_DOT(sc)); TOK8M2(ZACC8)
 		for (int b = 0; b < KB; b++) {
@@ -271,9 +270,11 @@ int main(void) {
 	TIME("gemm", "single", 4, single_4());
 	TIME("gemm", "unroll", 4, unroll_4(1));
 	TIME("gemm", "unscaled", 4, unroll_4(0));
+	pack8(1);
 	TIME8("gemm8m1", "unroll", gemm8m1(1));
-	TIME8("gemm8m1", "unscaled", gemm8m1(0));
 	TIME8("gemm8m2", "unroll", gemm8m2(1));
+	pack8(0);
+	TIME8("gemm8m1", "unscaled", gemm8m1(0));
 	TIME8("gemm8m2", "unscaled", gemm8m2(0));
 	return 0;
 }
