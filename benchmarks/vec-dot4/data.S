@@ -4824,9 +4824,9 @@ vv_s_a1_rmm_e1_m1_sb:
     .word 0x9EF17A30
     .word 0xD00CF3EE
     .word 0x36EC7A95
-.global vf_s_a0_rne_e1_m1_a
+.global vx_s_a0_rne_e1_m1_a
 .balign 64
-vf_s_a0_rne_e1_m1_a:
+vx_s_a0_rne_e1_m1_a:
     .word 0x0C84F903
     .word 0xF2F0CD9C
     .word 0x0086EE83
@@ -4891,9 +4891,9 @@ vf_s_a0_rne_e1_m1_a:
     .word 0x916792C4
     .word 0x55D3F721
     .word 0x4A9BC36B
-.global vf_s_a0_rne_e1_m1_sa
+.global vx_s_a0_rne_e1_m1_sa
 .balign 64
-vf_s_a0_rne_e1_m1_sa:
+vx_s_a0_rne_e1_m1_sa:
     .word 0x827F54A9
     .word 0x7B7E8180
     .word 0x5C5F9BBB
@@ -4958,9 +4958,9 @@ vf_s_a0_rne_e1_m1_sa:
     .word 0x2FD3A9E8
     .word 0x950ACE3D
     .word 0x24893AF6
-.global vf_s_a0_rne_e1_m1_c
+.global vx_s_a0_rne_e1_m1_c
 .balign 64
-vf_s_a0_rne_e1_m1_c:
+vx_s_a0_rne_e1_m1_c:
     .word 0xE10FB090
     .word 0x24C43B2A
     .word 0xBC24ED4A
@@ -5025,9 +5025,9 @@ vf_s_a0_rne_e1_m1_c:
     .word 0x2DCDB89C
     .word 0x00D25222
     .word 0x2C1E71FD
-.global vf_s_a0_rne_e1_m1_out
+.global vx_s_a0_rne_e1_m1_out
 .balign 64
-vf_s_a0_rne_e1_m1_out:
+vx_s_a0_rne_e1_m1_out:
     .word 0xE10FB091
     .word 0xAC78EA88
     .word 0xBFFD30EB
@@ -5092,9 +5092,9 @@ vf_s_a0_rne_e1_m1_out:
     .word 0x2F58B594
     .word 0x05289D29
     .word 0x2C1E71EE
-.global vf_s_a0_rne_e1_m1_f
+.global vx_s_a0_rne_e1_m1_f
 .balign 64
-vf_s_a0_rne_e1_m1_f:
+vx_s_a0_rne_e1_m1_f:
     .word 0x40B1211B
     .word 0x00000080
     .word 0x54BC863A
@@ -5111,9 +5111,9 @@ vf_s_a0_rne_e1_m1_f:
     .word 0x00000086
     .word 0x3F189AC3
     .word 0x00000007
-.global vf_s_a0_rtz_e1_m1_a
+.global vx_s_a0_rtz_e1_m1_a
 .balign 64
-vf_s_a0_rtz_e1_m1_a:
+vx_s_a0_rtz_e1_m1_a:
     .word 0x2BD676A7
     .word 0xCF857B6B
     .word 0x51C76EE1
@@ -5178,9 +5178,9 @@ vf_s_a0_rtz_e1_m1_a:
     .word 0x546330FE
     .word 0x346FD979
     .word 0x3170D348
-.global vf_s_a0_rtz_e1_m1_sa
+.global vx_s_a0_rtz_e1_m1_sa
 .balign 64
-vf_s_a0_rtz_e1_m1_sa:
+vx_s_a0_rtz_e1_m1_sa:
     .word 0x7A5E96AE
     .word 0xDB837A47
     .word 0x6DF71CDA
@@ -5245,9 +5245,9 @@ vf_s_a0_rtz_e1_m1_sa:
     .word 0x7F448EA9
     .word 0x8142F829
     .word 0xAB2E3F13
-.global vf_s_a0_rtz_e1_m1_c
+.global vx_s_a0_rtz_e1_m1_c
 .balign 64
-vf_s_a0_rtz_e1_m1_c:
+vx_s_a0_rtz_e1_m1_c:
     .word 0xE6DC50AD
     .word 0xCF8E9669
     .word 0xB411A4AE
@@ -5312,9 +5312,9 @@ vf_s_a0_rtz_e1_m1_c:
     .word 0x3BF9E67F
     .word 0xB8097BD2
     .word 0x4122AEE9
-.global vf_s_a0_rtz_e1_m1_out
+.global vx_s_a0_rtz_e1_m1_out
 .balign 64
-vf_s_a0_rtz_e1_m1_out:
+vx_s_a0_rtz_e1_m1_out:
     .word 0xE6DC5043
     .word 0xD39ACB7D
     .word 0x37099E71
@@ -5379,9 +5379,9 @@ vf_s_a0_rtz_e1_m1_out:
     .word 0xC36E5A3C
     .word 0xC387E9D1
     .word 0xC48F388A
-.global vf_s_a0_rtz_e1_m1_f
+.global vx_s_a0_rtz_e1_m1_f
 .balign 64
-vf_s_a0_rtz_e1_m1_f:
+vx_s_a0_rtz_e1_m1_f:
     .word 0x8EF79CF6
     .word 0x00000086
     .word 0x03510B89
@@ -5398,9 +5398,9 @@ vf_s_a0_rtz_e1_m1_f:
     .word 0x0000006B
     .word 0xF6F99CA7
     .word 0x0000007B
-.global vf_s_a0_rdn_e1_m1_a
+.global vx_s_a0_rdn_e1_m1_a
 .balign 64
-vf_s_a0_rdn_e1_m1_a:
+vx_s_a0_rdn_e1_m1_a:
     .word 0x70886E64
     .word 0x062E9220
     .word 0x74E245D6
@@ -5465,9 +5465,9 @@ vf_s_a0_rdn_e1_m1_a:
     .word 0x56FEC965
     .word 0xCD6B1D09
     .word 0x85D71EC4
-.global vf_s_a0_rdn_e1_m1_sa
+.global vx_s_a0_rdn_e1_m1_sa
 .balign 64
-vf_s_a0_rdn_e1_m1_sa:
+vx_s_a0_rdn_e1_m1_sa:
     .word 0x7E7A8385
     .word 0x539DB586
     .word 0x248FF686
@@ -5532,9 +5532,9 @@ vf_s_a0_rdn_e1_m1_sa:
     .word 0x37272BB6
     .word 0x7FCF3213
     .word 0xD71232EB
-.global vf_s_a0_rdn_e1_m1_c
+.global vx_s_a0_rdn_e1_m1_c
 .balign 64
-vf_s_a0_rdn_e1_m1_c:
+vx_s_a0_rdn_e1_m1_c:
     .word 0x43197184
     .word 0xBD2954E1
     .word 0xBA82472A
@@ -5599,9 +5599,9 @@ vf_s_a0_rdn_e1_m1_c:
     .word 0xC00E5DA6
     .word 0xBDAB0C56
     .word 0x3938A22C
-.global vf_s_a0_rdn_e1_m1_out
+.global vx_s_a0_rdn_e1_m1_out
 .balign 64
-vf_s_a0_rdn_e1_m1_out:
+vx_s_a0_rdn_e1_m1_out:
     .word 0x44A2D3F0
     .word 0xBDE38571
     .word 0xBC884D73
@@ -5666,9 +5666,9 @@ vf_s_a0_rdn_e1_m1_out:
     .word 0xC1E44985
     .word 0xBD0C602C
     .word 0x3BC45A59
-.global vf_s_a0_rdn_e1_m1_f
+.global vx_s_a0_rdn_e1_m1_f
 .balign 64
-vf_s_a0_rdn_e1_m1_f:
+vx_s_a0_rdn_e1_m1_f:
     .word 0x13D79D64
     .word 0x0000007C
     .word 0x9F03C5E9
@@ -5685,9 +5685,9 @@ vf_s_a0_rdn_e1_m1_f:
     .word 0x00000061
     .word 0x181493E0
     .word 0x0000007A
-.global vf_s_a0_rup_e1_m1_a
+.global vx_s_a0_rup_e1_m1_a
 .balign 64
-vf_s_a0_rup_e1_m1_a:
+vx_s_a0_rup_e1_m1_a:
     .word 0xD8B3C6CC
     .word 0xA11B1A6A
     .word 0x65D76259
@@ -5752,9 +5752,9 @@ vf_s_a0_rup_e1_m1_a:
     .word 0x91B6F2DD
     .word 0x790C2226
     .word 0xBBAFEB44
-.global vf_s_a0_rup_e1_m1_sa
+.global vx_s_a0_rup_e1_m1_sa
 .balign 64
-vf_s_a0_rup_e1_m1_sa:
+vx_s_a0_rup_e1_m1_sa:
     .word 0x82502586
     .word 0x36868500
     .word 0x27507153
@@ -5819,9 +5819,9 @@ vf_s_a0_rup_e1_m1_sa:
     .word 0xD2273FD9
     .word 0xDF177C70
     .word 0xE96425C2
-.global vf_s_a0_rup_e1_m1_c
+.global vx_s_a0_rup_e1_m1_c
 .balign 64
-vf_s_a0_rup_e1_m1_c:
+vx_s_a0_rup_e1_m1_c:
     .word 0x3E1160E7
     .word 0x3F800000
     .word 0x22A94D53
@@ -5886,9 +5886,9 @@ vf_s_a0_rup_e1_m1_c:
     .word 0x7F30F1A9
     .word 0xC01D6FCE
     .word 0x3F800000
-.global vf_s_a0_rup_e1_m1_out
+.global vx_s_a0_rup_e1_m1_out
 .balign 64
-vf_s_a0_rup_e1_m1_out:
+vx_s_a0_rup_e1_m1_out:
     .word 0x461E2822
     .word 0x3F800000
     .word 0xAC193EAA
@@ -5953,9 +5953,9 @@ vf_s_a0_rup_e1_m1_out:
     .word 0x7F800000
     .word 0xC4EA4EFF
     .word 0x41D21200
-.global vf_s_a0_rup_e1_m1_f
+.global vx_s_a0_rup_e1_m1_f
 .balign 64
-vf_s_a0_rup_e1_m1_f:
+vx_s_a0_rup_e1_m1_f:
     .word 0xC98BBEA2
     .word 0x00000083
     .word 0x06EBA0CB
@@ -5972,9 +5972,9 @@ vf_s_a0_rup_e1_m1_f:
     .word 0x0000007C
     .word 0xDD2AA399
     .word 0x00000086
-.global vf_s_a0_rmm_e1_m1_a
+.global vx_s_a0_rmm_e1_m1_a
 .balign 64
-vf_s_a0_rmm_e1_m1_a:
+vx_s_a0_rmm_e1_m1_a:
     .word 0x8BBEC8AD
     .word 0x92C4F588
     .word 0xE010DDAF
@@ -6039,9 +6039,9 @@ vf_s_a0_rmm_e1_m1_a:
     .word 0x1FDBFCC8
     .word 0xF4651831
     .word 0x89A3CC44
-.global vf_s_a0_rmm_e1_m1_sa
+.global vx_s_a0_rmm_e1_m1_sa
 .balign 64
-vf_s_a0_rmm_e1_m1_sa:
+vx_s_a0_rmm_e1_m1_sa:
     .word 0x80FE8280
     .word 0x7AC98280
     .word 0x03ADBF69
@@ -6106,9 +6106,9 @@ vf_s_a0_rmm_e1_m1_sa:
     .word 0x97F29CCD
     .word 0xF3B3BF4B
     .word 0x3E75E24C
-.global vf_s_a0_rmm_e1_m1_c
+.global vx_s_a0_rmm_e1_m1_c
 .balign 64
-vf_s_a0_rmm_e1_m1_c:
+vx_s_a0_rmm_e1_m1_c:
     .word 0x0D6C43B9
     .word 0x9233B380
     .word 0xBDBAE7F0
@@ -6173,9 +6173,9 @@ vf_s_a0_rmm_e1_m1_c:
     .word 0x197154D4
     .word 0x00E4BC9A
     .word 0x228656DF
-.global vf_s_a0_rmm_e1_m1_out
+.global vx_s_a0_rmm_e1_m1_out
 .balign 64
-vf_s_a0_rmm_e1_m1_out:
+vx_s_a0_rmm_e1_m1_out:
     .word 0x0D6C43D9
     .word 0x9233B379
     .word 0x444FDE09
@@ -6240,9 +6240,9 @@ vf_s_a0_rmm_e1_m1_out:
     .word 0x2537C7C1
     .word 0x00E4BC9A
     .word 0x23ED9CB8
-.global vf_s_a0_rmm_e1_m1_f
+.global vx_s_a0_rmm_e1_m1_f
 .balign 64
-vf_s_a0_rmm_e1_m1_f:
+vx_s_a0_rmm_e1_m1_f:
     .word 0x28CDF8D2
     .word 0x00000001
     .word 0x76E389BE
@@ -6259,9 +6259,9 @@ vf_s_a0_rmm_e1_m1_f:
     .word 0x0000001A
     .word 0xD7EE4160
     .word 0x00000040
-.global vf_s_a1_rne_e1_m1_a
+.global vx_s_a1_rne_e1_m1_a
 .balign 64
-vf_s_a1_rne_e1_m1_a:
+vx_s_a1_rne_e1_m1_a:
     .word 0x74BAE3A3
     .word 0x0E22680F
     .word 0xA3EA7410
@@ -6326,9 +6326,9 @@ vf_s_a1_rne_e1_m1_a:
     .word 0x1B204002
     .word 0x45533AA9
     .word 0x927C5B7B
-.global vf_s_a1_rne_e1_m1_sa
+.global vx_s_a1_rne_e1_m1_sa
 .balign 64
-vf_s_a1_rne_e1_m1_sa:
+vx_s_a1_rne_e1_m1_sa:
     .word 0xE516195C
     .word 0xEA4099AB
     .word 0x3F443388
@@ -6393,9 +6393,9 @@ vf_s_a1_rne_e1_m1_sa:
     .word 0x1C1B5A8B
     .word 0x6820C5FB
     .word 0xF0A10360
-.global vf_s_a1_rne_e1_m1_c
+.global vx_s_a1_rne_e1_m1_c
 .balign 64
-vf_s_a1_rne_e1_m1_c:
+vx_s_a1_rne_e1_m1_c:
     .word 0x80000000
     .word 0x008BE1C2
     .word 0x80E85239
@@ -6460,9 +6460,9 @@ vf_s_a1_rne_e1_m1_c:
     .word 0x39ACDA5F
     .word 0x48ECD03E
     .word 0x47BA230F
-.global vf_s_a1_rne_e1_m1_out
+.global vx_s_a1_rne_e1_m1_out
 .balign 64
-vf_s_a1_rne_e1_m1_out:
+vx_s_a1_rne_e1_m1_out:
     .word 0x80000001
     .word 0x008BE1C2
     .word 0x80E85239
@@ -6527,9 +6527,9 @@ vf_s_a1_rne_e1_m1_out:
     .word 0x40001E37
     .word 0x48F3D055
     .word 0x4B01970E
-.global vf_s_a1_rne_e1_m1_f
+.global vx_s_a1_rne_e1_m1_f
 .balign 64
-vf_s_a1_rne_e1_m1_f:
+vx_s_a1_rne_e1_m1_f:
     .word 0xC0698E9B
     .word 0x00000001
     .word 0xE954F607
@@ -6546,9 +6546,9 @@ vf_s_a1_rne_e1_m1_f:
     .word 0x0000007D
     .word 0x3F68C441
     .word 0x0000007E
-.global vf_s_a0_rne_e1_m1_hi_a
+.global vx_s_a0_rne_e1_m1_hi_a
 .balign 64
-vf_s_a0_rne_e1_m1_hi_a:
+vx_s_a0_rne_e1_m1_hi_a:
     .word 0xD5E61EE9
     .word 0x3E030CA8
     .word 0x6AD97870
@@ -6613,9 +6613,9 @@ vf_s_a0_rne_e1_m1_hi_a:
     .word 0xDE112011
     .word 0x004DFB6D
     .word 0x5B1EF8DE
-.global vf_s_a0_rne_e1_m1_hi_sa
+.global vx_s_a0_rne_e1_m1_hi_sa
 .balign 64
-vf_s_a0_rne_e1_m1_hi_sa:
+vx_s_a0_rne_e1_m1_hi_sa:
     .word 0x8286807B
     .word 0x7A077D84
     .word 0xF1E4C54E
@@ -6680,9 +6680,9 @@ vf_s_a0_rne_e1_m1_hi_sa:
     .word 0x46703460
     .word 0x37E8D359
     .word 0x228B5ACD
-.global vf_s_a0_rne_e1_m1_hi_c
+.global vx_s_a0_rne_e1_m1_hi_c
 .balign 64
-vf_s_a0_rne_e1_m1_hi_c:
+vx_s_a0_rne_e1_m1_hi_c:
     .word 0x25C3EBA0
     .word 0x34D9FA3A
     .word 0x80000000
@@ -6747,9 +6747,9 @@ vf_s_a0_rne_e1_m1_hi_c:
     .word 0x1692BE69
     .word 0x0F530429
     .word 0x9DA71373
-.global vf_s_a0_rne_e1_m1_hi_out
+.global vx_s_a0_rne_e1_m1_hi_out
 .balign 64
-vf_s_a0_rne_e1_m1_hi_out:
+vx_s_a0_rne_e1_m1_hi_out:
     .word 0x29C2814C
     .word 0x34D9FA3C
     .word 0xAF98D000
@@ -6814,9 +6814,9 @@ vf_s_a0_rne_e1_m1_hi_out:
     .word 0x1692CBFA
     .word 0x143233BD
     .word 0x9DA70C41
-.global vf_s_a0_rne_e1_m1_hi_f
+.global vx_s_a0_rne_e1_m1_hi_f
 .balign 64
-vf_s_a0_rne_e1_m1_hi_f:
+vx_s_a0_rne_e1_m1_hi_f:
     .word 0x261286AD
     .word 0x66914757
     .word 0x7718CA4A
@@ -6833,9 +6833,9 @@ vf_s_a0_rne_e1_m1_hi_f:
     .word 0x5D5825AF
     .word 0xD8A2EF60
     .word 0x724ACA21
-.global vf_s_a1_rne_e1_m1_hi_a
+.global vx_s_a1_rne_e1_m1_hi_a
 .balign 64
-vf_s_a1_rne_e1_m1_hi_a:
+vx_s_a1_rne_e1_m1_hi_a:
     .word 0xE0E47260
     .word 0xED0D3331
     .word 0x1D098C23
@@ -6900,9 +6900,9 @@ vf_s_a1_rne_e1_m1_hi_a:
     .word 0xFAD45013
     .word 0xDB129160
     .word 0xD0A823D8
-.global vf_s_a1_rne_e1_m1_hi_sa
+.global vx_s_a1_rne_e1_m1_hi_sa
 .balign 64
-vf_s_a1_rne_e1_m1_hi_sa:
+vx_s_a1_rne_e1_m1_hi_sa:
     .word 0x5F83857B
     .word 0x008E8284
     .word 0x299A07A4
@@ -6967,9 +6967,9 @@ vf_s_a1_rne_e1_m1_hi_sa:
     .word 0x7E9DBE19
     .word 0x239E5F93
     .word 0xFDFC72B4
-.global vf_s_a1_rne_e1_m1_hi_c
+.global vx_s_a1_rne_e1_m1_hi_c
 .balign 64
-vf_s_a1_rne_e1_m1_hi_c:
+vx_s_a1_rne_e1_m1_hi_c:
     .word 0x80000000
     .word 0xB28A7517
     .word 0xAD39CCC9
@@ -7034,9 +7034,9 @@ vf_s_a1_rne_e1_m1_hi_c:
     .word 0x42DBD119
     .word 0x4E29FA3B
     .word 0x38539C93
-.global vf_s_a1_rne_e1_m1_hi_out
+.global vx_s_a1_rne_e1_m1_hi_out
 .balign 64
-vf_s_a1_rne_e1_m1_hi_out:
+vx_s_a1_rne_e1_m1_hi_out:
     .word 0xACF20000
     .word 0xB28F755D
     .word 0xAD39CC01
@@ -7101,9 +7101,9 @@ vf_s_a1_rne_e1_m1_hi_out:
     .word 0xCC274125
     .word 0x4E29FA37
     .word 0xC41F593F
-.global vf_s_a1_rne_e1_m1_hi_f
+.global vx_s_a1_rne_e1_m1_hi_f
 .balign 64
-vf_s_a1_rne_e1_m1_hi_f:
+vx_s_a1_rne_e1_m1_hi_f:
     .word 0x6409ED0F
     .word 0x85070948
     .word 0xA86B9C0B
@@ -7120,9 +7120,9 @@ vf_s_a1_rne_e1_m1_hi_f:
     .word 0xC3C8A393
     .word 0x735D7EE4
     .word 0x3190807A
-.global vf_u_a0_rne_e1_m1_a
+.global vx_u_a0_rne_e1_m1_a
 .balign 64
-vf_u_a0_rne_e1_m1_a:
+vx_u_a0_rne_e1_m1_a:
     .word 0x1B8EAD63
     .word 0xAE6DA612
     .word 0xB330E669
@@ -7187,9 +7187,9 @@ vf_u_a0_rne_e1_m1_a:
     .word 0x0F763CA2
     .word 0x4B8B55C1
     .word 0xCAAD6647
-.global vf_u_a0_rne_e1_m1_sa
+.global vx_u_a0_rne_e1_m1_sa
 .balign 64
-vf_u_a0_rne_e1_m1_sa:
+vx_u_a0_rne_e1_m1_sa:
     .word 0xFF4D8201
     .word 0x027F7EAF
     .word 0x9412AC69
@@ -7254,9 +7254,9 @@ vf_u_a0_rne_e1_m1_sa:
     .word 0x5E6D4A80
     .word 0x00908A17
     .word 0xF1DB2044
-.global vf_u_a0_rne_e1_m1_c
+.global vx_u_a0_rne_e1_m1_c
 .balign 64
-vf_u_a0_rne_e1_m1_c:
+vx_u_a0_rne_e1_m1_c:
     .word 0xB8943FE3
     .word 0x3B1B104B
     .word 0xCE127F12
@@ -7321,9 +7321,9 @@ vf_u_a0_rne_e1_m1_c:
     .word 0x34185EE1
     .word 0xCAFFE8FF
     .word 0x3F800000
-.global vf_u_a0_rne_e1_m1_out
+.global vx_u_a0_rne_e1_m1_out
 .balign 64
-vf_u_a0_rne_e1_m1_out:
+vx_u_a0_rne_e1_m1_out:
     .word 0xC204B2D3
     .word 0xC1972F27
     .word 0xCE127F13
@@ -7388,9 +7388,9 @@ vf_u_a0_rne_e1_m1_out:
     .word 0x3DEC8013
     .word 0xCAFFE8F9
     .word 0xC0334000
-.global vf_u_a0_rne_e1_m1_f
+.global vx_u_a0_rne_e1_m1_f
 .balign 64
-vf_u_a0_rne_e1_m1_f:
+vx_u_a0_rne_e1_m1_f:
     .word 0xCCB430C4
     .word 0x00000017
     .word 0xDC196369
@@ -8211,9 +8211,9 @@ vv_s_a1_rne_e8_m1_sb:
     .word 0x7349B6D7
     .word 0xE8D5CD73
     .word 0x74FE2C83
-.global vf_s_a1_rne_e2_m1_a
+.global vx_s_a1_rne_e2_m1_a
 .balign 64
-vf_s_a1_rne_e2_m1_a:
+vx_s_a1_rne_e2_m1_a:
     .word 0x66F6AFFB
     .word 0x2B1BE89C
     .word 0x45066EB3
@@ -8278,9 +8278,9 @@ vf_s_a1_rne_e2_m1_a:
     .word 0x66E154B7
     .word 0x87BF9F1C
     .word 0x645EA5A3
-.global vf_s_a1_rne_e2_m1_sa
+.global vx_s_a1_rne_e2_m1_sa
 .balign 64
-vf_s_a1_rne_e2_m1_sa:
+vx_s_a1_rne_e2_m1_sa:
     .word 0x7C81AF85
     .word 0xB0EB191F
     .word 0x95564D61
@@ -8345,9 +8345,9 @@ vf_s_a1_rne_e2_m1_sa:
     .word 0x0C2A29EE
     .word 0xD8BA3063
     .word 0x0EA77D81
-.global vf_s_a1_rne_e2_m1_c
+.global vx_s_a1_rne_e2_m1_c
 .balign 64
-vf_s_a1_rne_e2_m1_c:
+vx_s_a1_rne_e2_m1_c:
     .word 0x437410BE
     .word 0xBA02EE44
     .word 0x80000000
@@ -8412,9 +8412,9 @@ vf_s_a1_rne_e2_m1_c:
     .word 0x80AE94F1
     .word 0x80BF8AB4
     .word 0x80B39D39
-.global vf_s_a1_rne_e2_m1_out
+.global vx_s_a1_rne_e2_m1_out
 .balign 64
-vf_s_a1_rne_e2_m1_out:
+vx_s_a1_rne_e2_m1_out:
     .word 0x4C441561
     .word 0x47000380
     .word 0xDCBF9DC4
@@ -8479,9 +8479,9 @@ vf_s_a1_rne_e2_m1_out:
     .word 0x80B3D4CE
     .word 0x80C15C7E
     .word 0x81ACF388
-.global vf_s_a1_rne_e2_m1_f
+.global vx_s_a1_rne_e2_m1_f
 .balign 64
-vf_s_a1_rne_e2_m1_f:
+vx_s_a1_rne_e2_m1_f:
     .word 0x129FB0C7
     .word 0x00000084
     .word 0x6CAD3FEF
@@ -8498,9 +8498,9 @@ vf_s_a1_rne_e2_m1_f:
     .word 0x0000007B
     .word 0x9B1C2995
     .word 0x00000001
-.global vf_s_a0_rne_e8_m1_a
+.global vx_s_a0_rne_e8_m1_a
 .balign 64
-vf_s_a0_rne_e8_m1_a:
+vx_s_a0_rne_e8_m1_a:
     .word 0x00D65C3B
     .word 0x0ABD986F
     .word 0xB8C8394C
@@ -8565,9 +8565,9 @@ vf_s_a0_rne_e8_m1_a:
     .word 0x674336FA
     .word 0xC1CBAFED
     .word 0x7E702387
-.global vf_s_a0_rne_e8_m1_sa
+.global vx_s_a0_rne_e8_m1_sa
 .balign 64
-vf_s_a0_rne_e8_m1_sa:
+vx_s_a0_rne_e8_m1_sa:
     .word 0xF135E97F
     .word 0x50A05353
     .word 0x9A997BEC
@@ -8632,9 +8632,9 @@ vf_s_a0_rne_e8_m1_sa:
     .word 0x5632A4F3
     .word 0xEEE919C1
     .word 0xC48F8D33
-.global vf_s_a0_rne_e8_m1_c
+.global vx_s_a0_rne_e8_m1_c
 .balign 64
-vf_s_a0_rne_e8_m1_c:
+vx_s_a0_rne_e8_m1_c:
     .word 0x466B6062
     .word 0xCAC89204
     .word 0x492D32CD
@@ -8699,9 +8699,9 @@ vf_s_a0_rne_e8_m1_c:
     .word 0xC352B4AE
     .word 0x38D14629
     .word 0x366A5F7B
-.global vf_s_a0_rne_e8_m1_out
+.global vx_s_a0_rne_e8_m1_out
 .balign 64
-vf_s_a0_rne_e8_m1_out:
+vx_s_a0_rne_e8_m1_out:
     .word 0x466951B2
     .word 0xCAC8D584
     .word 0x492D17A8
@@ -8766,9 +8766,9 @@ vf_s_a0_rne_e8_m1_out:
     .word 0xC352B4A9
     .word 0x387F9C6E
     .word 0x3AA9E53F
-.global vf_s_a0_rne_e8_m1_f
+.global vx_s_a0_rne_e8_m1_f
 .balign 64
-vf_s_a0_rne_e8_m1_f:
+vx_s_a0_rne_e8_m1_f:
     .word 0x469CCBF9
     .word 0x00000081
     .word 0xE4FC7DE8
@@ -9429,9 +9429,9 @@ vv_s_a1_rne_e1_m4_sb:
     .word 0x83FEFE80
     .word 0x81BA7BBB
     .word 0x897C1980
-.global vf_s_a1_rne_e1_m2_a
+.global vx_s_a1_rne_e1_m2_a
 .balign 64
-vf_s_a1_rne_e1_m2_a:
+vx_s_a1_rne_e1_m2_a:
     .word 0xCED7CE78
     .word 0x71B92958
     .word 0x791AE9EE
@@ -9496,9 +9496,9 @@ vf_s_a1_rne_e1_m2_a:
     .word 0x07E014A2
     .word 0xA863F306
     .word 0xAAAE5BF5
-.global vf_s_a1_rne_e1_m2_sa
+.global vx_s_a1_rne_e1_m2_sa
 .balign 64
-vf_s_a1_rne_e1_m2_sa:
+vx_s_a1_rne_e1_m2_sa:
     .word 0x8252022F
     .word 0x857D86D1
     .word 0x86077D7D
@@ -9531,9 +9531,9 @@ vf_s_a1_rne_e1_m2_sa:
     .word 0x7D37FE82
     .word 0xFC57DA0C
     .word 0x76E10F33
-.global vf_s_a1_rne_e1_m2_c
+.global vx_s_a1_rne_e1_m2_c
 .balign 64
-vf_s_a1_rne_e1_m2_c:
+vx_s_a1_rne_e1_m2_c:
     .word 0xA40C0149
     .word 0x86C9DD93
     .word 0x1F27B84C
@@ -9598,9 +9598,9 @@ vf_s_a1_rne_e1_m2_c:
     .word 0x48C96354
     .word 0xA4BDF619
     .word 0xC7BDCD6F
-.global vf_s_a1_rne_e1_m2_out
+.global vx_s_a1_rne_e1_m2_out
 .balign 64
-vf_s_a1_rne_e1_m2_out:
+vx_s_a1_rne_e1_m2_out:
     .word 0xA40C0149
     .word 0x86C9DD88
     .word 0xA7801FAC
@@ -9665,9 +9665,9 @@ vf_s_a1_rne_e1_m2_out:
     .word 0x48C94DBC
     .word 0xAB0C0548
     .word 0x48C2BCA4
-.global vf_s_a1_rne_e1_m2_f
+.global vx_s_a1_rne_e1_m2_f
 .balign 64
-vf_s_a1_rne_e1_m2_f:
+vx_s_a1_rne_e1_m2_f:
     .word 0x50C26F79
     .word 0x00000064
     .word 0xF8F01B0F
@@ -9676,9 +9676,9 @@ vf_s_a1_rne_e1_m2_f:
     .word 0x00000084
     .word 0x223261E2
     .word 0x00000082
-.global vf_s_a0_rne_e1_m4_a
+.global vx_s_a0_rne_e1_m4_a
 .balign 64
-vf_s_a0_rne_e1_m4_a:
+vx_s_a0_rne_e1_m4_a:
     .word 0xF37B8C47
     .word 0xA330998E
     .word 0x9859233F
@@ -9743,9 +9743,9 @@ vf_s_a0_rne_e1_m4_a:
     .word 0x68275925
     .word 0x94C3961B
     .word 0x22855C7C
-.global vf_s_a0_rne_e1_m4_sa
+.global vx_s_a0_rne_e1_m4_sa
 .balign 64
-vf_s_a0_rne_e1_m4_sa:
+vx_s_a0_rne_e1_m4_sa:
     .word 0x8586807F
     .word 0x7D7A01B2
     .word 0x84697180
@@ -9762,9 +9762,9 @@ vf_s_a0_rne_e1_m4_sa:
     .word 0x7A7CF281
     .word 0x83863101
     .word 0x80AF8184
-.global vf_s_a0_rne_e1_m4_c
+.global vx_s_a0_rne_e1_m4_c
 .balign 64
-vf_s_a0_rne_e1_m4_c:
+vx_s_a0_rne_e1_m4_c:
     .word 0xCC4839DF
     .word 0xC11C919B
     .word 0xC1999D4D
@@ -9829,9 +9829,9 @@ vf_s_a0_rne_e1_m4_c:
     .word 0xFE1E10D4
     .word 0xFF0F5D17
     .word 0x7F3C6FF0
-.global vf_s_a0_rne_e1_m4_out
+.global vx_s_a0_rne_e1_m4_out
 .balign 64
-vf_s_a0_rne_e1_m4_out:
+vx_s_a0_rne_e1_m4_out:
     .word 0xCC483A0F
     .word 0xC11FBD9B
     .word 0xC45D9CEA
@@ -9896,9 +9896,9 @@ vf_s_a0_rne_e1_m4_out:
     .word 0xFF800000
     .word 0xFF800000
     .word 0xFF800000
-.global vf_s_a0_rne_e1_m4_f
+.global vx_s_a0_rne_e1_m4_f
 .balign 64
-vf_s_a0_rne_e1_m4_f:
+vx_s_a0_rne_e1_m4_f:
     .word 0x58A348E6
     .word 0x0000007F
     .word 0x072BCE1A
@@ -10622,9 +10622,9 @@ vv_s_a0_rne_e1_m1_mask_m:
     .word 0x29B841EF
     .word 0xB91173A3
     .word 0x2D0ADED3
-.global vf_s_a1_rne_e1_m2_mask_a
+.global vx_s_a1_rne_e1_m2_mask_a
 .balign 64
-vf_s_a1_rne_e1_m2_mask_a:
+vx_s_a1_rne_e1_m2_mask_a:
     .word 0x3DBD5EE6
     .word 0x5359377C
     .word 0xC54D996B
@@ -10689,9 +10689,9 @@ vf_s_a1_rne_e1_m2_mask_a:
     .word 0x05B36045
     .word 0xDF15F4C1
     .word 0x0A73DC9A
-.global vf_s_a1_rne_e1_m2_mask_sa
+.global vx_s_a1_rne_e1_m2_mask_sa
 .balign 64
-vf_s_a1_rne_e1_m2_mask_sa:
+vx_s_a1_rne_e1_m2_mask_sa:
     .word 0x86EB7BB5
     .word 0x80863282
     .word 0x7F80827F
@@ -10724,9 +10724,9 @@ vf_s_a1_rne_e1_m2_mask_sa:
     .word 0x4FFEAEC7
     .word 0x7ED31B2F
     .word 0x73F1FD1D
-.global vf_s_a1_rne_e1_m2_mask_c
+.global vx_s_a1_rne_e1_m2_mask_c
 .balign 64
-vf_s_a1_rne_e1_m2_mask_c:
+vx_s_a1_rne_e1_m2_mask_c:
     .word 0xDE788063
     .word 0x4BBCAB8C
     .word 0xFF44F014
@@ -10791,9 +10791,9 @@ vf_s_a1_rne_e1_m2_mask_c:
     .word 0xAD23BB70
     .word 0xCB6F65B2
     .word 0x3B96A3B6
-.global vf_s_a1_rne_e1_m2_mask_out
+.global vx_s_a1_rne_e1_m2_mask_out
 .balign 64
-vf_s_a1_rne_e1_m2_mask_out:
+vx_s_a1_rne_e1_m2_mask_out:
     .word 0xDE7809F7
     .word 0x4BBCAB8A
     .word 0xFF44F014
@@ -10858,9 +10858,9 @@ vf_s_a1_rne_e1_m2_mask_out:
     .word 0xAD23BB70
     .word 0xCB6F65B2
     .word 0x3B96A3B6
-.global vf_s_a1_rne_e1_m2_mask_f
+.global vx_s_a1_rne_e1_m2_mask_f
 .balign 64
-vf_s_a1_rne_e1_m2_mask_f:
+vx_s_a1_rne_e1_m2_mask_f:
     .word 0x27DAA18E
     .word 0x0000007A
     .word 0x399B4C35
@@ -10869,9 +10869,9 @@ vf_s_a1_rne_e1_m2_mask_f:
     .word 0x00000074
     .word 0xCB120410
     .word 0x00000080
-.global vf_s_a1_rne_e1_m2_mask_m
+.global vx_s_a1_rne_e1_m2_mask_m
 .balign 64
-vf_s_a1_rne_e1_m2_mask_m:
+vx_s_a1_rne_e1_m2_mask_m:
     .word 0xD3C86E0B
     .word 0x2BC8A624
     .word 0x3A9753AB
