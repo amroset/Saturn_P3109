@@ -102,3 +102,4 @@ object FPSpecRM          extends XDefaultInstructionField { override val width =
 
 // Outer Product Unit control
 object OPFP8             extends NDefaultInstructionField
+object FPDot4            extends NDefaultInstructionField // vfdot4

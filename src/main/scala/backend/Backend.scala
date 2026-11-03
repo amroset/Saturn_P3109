@@ -133,7 +133,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     Reduction, Wide2VD, Wide2VS2, WritesAsMask,
     ReadsVS1AsMask, ReadsVS2AsMask, ReadsVS1, ReadsVS2, ReadsVD,
     VMBitReadsVM, AlwaysReadsVM, WritesVD, WritesScalar, ScalarToVD0
-  ))).decode(vdq.io.deq.bits)
+  ) ++ (if (vParams.scaledDot) Seq(FPDot4) else Nil))).decode(vdq.io.deq.bits)
 
   // Load sequencer
   vlissq.io.enq.bits.nf_log2 := log2_up(vdq.io.deq.bits.nf, 8)
@@ -175,11 +175,14 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
   // register. Scalar (.vf) operands and wide (BF16) operands are not scaled.
   if (vParams.scaledMode) {
     val dis_inst = vdq.io.deq.bits
-    val dis_scaled = dis_inst.vscaled && new VectorDecoder(dis_inst, ScaledMode.insns, Nil).matched
+    val scaled_insns = ScaledMode.insns ++ (if (vParams.scaledDot) ScaledMode.dotInsns else Nil)
+    val dis_scaled = dis_inst.vscaled && new VectorDecoder(dis_inst, scaled_insns, Nil).matched
+    // vfdot4's vd holds FP32 accumulators, not a block
+    val dis_dot = if (vParams.scaledDot) dis_ctrl.bool(FPDot4) else false.B
     vxissqs.foreach { vxissq =>
       vxissq.io.enq.bits.scaled_vs1 := dis_scaled && dis_ctrl.bool(ReadsVS1)
       vxissq.io.enq.bits.scaled_vs2 := dis_scaled && dis_ctrl.bool(ReadsVS2) && !dis_ctrl.bool(Wide2VS2)
-      vxissq.io.enq.bits.scaled_vd  := dis_scaled && !dis_ctrl.bool(Wide2VD)
+      vxissq.io.enq.bits.scaled_vd  := dis_scaled && !dis_ctrl.bool(Wide2VD) && !dis_dot
     }
   }
 

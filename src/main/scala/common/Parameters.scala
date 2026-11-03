@@ -82,6 +82,12 @@ object VectorParams {
     p3109 = Some(P3109Formats(block = true))
   )
 
+  // p3109BlockDotParams:
+  // Same as p3109BlockParams, with vfdot4 (docs/vfdot4.md)
+  def p3109BlockDotParams = p3109BlockParams.copy(
+    p3109 = Some(P3109Formats(block = true, dot = true))
+  )
+
   // p3109BlockFiniteParams:
   // Same as p3109BlockParams, both formats in the finite domain
   def p3109BlockFiniteParams = p3109BlockParams.copy(
@@ -402,10 +408,12 @@ case class P3109Formats(
   p4: P3109Domain = P3109Domain.Extended,
   p3: P3109Domain = P3109Domain.Extended,
   block: Boolean = false, // Scaled mode in FPConv and the FMA (vtype bit 11)
+  dot: Boolean = false,   // vfdot4 in the FMA (docs/vfdot4.md)
   genericReader: Boolean = false,
   extra: Seq[Int] = Nil
 ) {
   require(!(genericReader && block), "the precision sweep has no block scaling")
+  require(!dot || block, "vfdot4 needs scaled mode")
   require(extra.isEmpty || genericReader, "extra precisions need genericReader = true")
   require(extra.forall(p => p >= 2 && p <= 7 && p != 3 && p != 4) && extra.distinct.size == extra.size,
     "extra precisions must be distinct, in 2..7, and not 3 or 4")
@@ -530,6 +538,7 @@ case class VectorParams(
   // above altfmt (bits 10:9 being the element-format code's upper bits, used
   // by opuFP4).
   def scaledMode = p3109.exists(_.block)
+  def scaledDot = p3109.exists(_.dot)
   require(scaleBufRegs >= 1 && (scaleBufRegs & (scaleBufRegs - 1)) == 0, "scaleBufRegs must be a power of two")
   def vtypeFmtBits = if (scaledMode) 6 else if (opuFP4) 2 else 0
 }

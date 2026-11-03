@@ -433,7 +433,7 @@ trait FMAFactory extends FunctionalUnitFactory {
 }
 
 case class SIMDFPFMAFactory(depth: Int, elementWiseFP64: Boolean = false, segmentedFPFMA: Boolean = false, mxFPFMA: Boolean, p3109: Option[P3109Formats]) extends FMAFactory {
-  def insns = if (elementWiseFP64) {
+  def insns = (if (elementWiseFP64) {
     base_insns.map { insn =>
       if (insn.lookup(SEW).value == 3 || (insn.lookup(SEW).value == 2 && insn.lookup(Wide2VD).value == 1)) {
         insn.elementWise
@@ -443,7 +443,7 @@ case class SIMDFPFMAFactory(depth: Int, elementWiseFP64: Boolean = false, segmen
     }
   } else {
     base_insns
-  }
+  }) ++ (if (p3109.exists(_.dot)) ScaledMode.dotInsns.map(_.pipelined(depth)) else Nil)
   def generate(implicit p: Parameters) = new FPFMAPipe(depth, elementWiseFP64, segmentedFPFMA, mxFPFMA, p3109)(p)
 }
 
@@ -661,6 +661,35 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
       io.set_fflags.bits := lanes.zipWithIndex.map { case (l, j) =>
         Mux(Mux(wide, (j < dLenB / 2).B && outp.wmask(2 * j % dLenB), outp.wmask(j)), l.io.exc, 0.U)
       }.reduce(_|_)
+    }
+
+    // vfdot4 (P3109Formats.dot, docs/vfdot4.md): one ScaledDotLane per FP32
+    // element. In scaled mode vs2 is a block; so is vs1 (.vv), while .vf's
+    // scalar carries its four elements in bits 31:0 and their scale in 39:32.
+    if (p3109.get.dot) {
+      def isDot(b: ExecuteMicroOp) = b.isOpf && b.funct6 === OPFFunct6.fdot4.litValue.U
+      val vf = in.funct3 === VectorConsts.OPFVF
+      val dots = Seq.tabulate(dLenB / 4) { j =>
+        val lane = Module(new ScaledDotLane(depth, p3109.get))
+        def elem(data: UInt) = extractElem(data, 2.U, eidx + j.U)(31, 0)
+        def scaleOf(data: UInt) = extractElem(data, 0.U, (eidx + j.U) >> in.scale_lg.get)(7, 0)
+        lane.io.a := elem(in.rvs2_data)
+        lane.io.b := Mux(vf, in.scalar(31, 0), elem(in.rvs1_data))
+        lane.io.c := elem(in.rvd_data)
+        lane.io.sa := Mux(in.scaled_vs2.get, scaleOf(in.rvs2_scale.get), 128.U)
+        lane.io.sb := Mux(vf, Mux(in.scaled_vs2.get, in.scalar(39, 32), 128.U),
+                              Mux(in.scaled_vs1.get, scaleOf(in.rvs1_scale.get), 128.U))
+        lane.io.frm := in.frm
+        lane.io.altfmt := altfmt
+        lane.io.valid := io.pipe(0).valid && isDot(in)
+        lane
+      }
+      when (isDot(outp)) {
+        io.write.bits.data := VecInit(dots.map(_.io.out)).asUInt
+        io.set_fflags.bits := dots.zipWithIndex.map { case (l, j) =>
+          Mux(outp.wmask(4 * j), l.io.exc, 0.U)
+        }.reduce(_|_)
+      }
     }
   }
 }

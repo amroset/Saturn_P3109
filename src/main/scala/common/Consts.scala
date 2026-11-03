@@ -85,7 +85,9 @@ object OPFFunct6 extends ChiselEnum {
   val opfmaccs = Value // OPFMACC.S: scales in vs1+1 and vs2+1
   val frsub = Value
   val fmadd, fnmadd, fmsub, fnmsub, fmacc, fnmacc, fmsac, fnmsac, fwadd, fwredusum, fwsub, fwredosum = Value
-  val fwaddw, _, fwsubw, _, fwmul, _, _, _, fwmacc, fwnmacc, fwmsac, fwnmsac = Value
+  val fwaddw = Value
+  val fdot4 = Value // vfdot4 (custom, scaledDot): 0x35, reserved in RVV 1.0
+  val fwsubw, _, fwmul, _, _, _, fwmacc, fwnmacc, fwmsac, fwnmsac = Value
   val illegal = Value(0x40.U)
 }
 

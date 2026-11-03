@@ -213,6 +213,11 @@ object FCVT_NRW_BF16 extends VectorInstruction { val props = Seq(F6(OPFFunct6.fu
 // blocks when vtype's scaled bit is set, all at SEW 8. The FMA's arithmetic
 // and the FP8 <-> BF16 conversions; not the reductions, which combine elements
 // (P3109 5.6 is not elementwise), nor compares, min/max, sign injection, moves.
+// vfdot4 (P3109Formats.dot, docs/vfdot4.md): at SEW 32, vd[i] += sum of the
+// four products of the 8-bit elements packed in lane i of vs2 and vs1 (.vf:
+// bits 31:0 of the scalar, its scale in bits 39:32), rounded once
+object FDOT4     extends OPFInstruction    { val props = Seq(F6(OPFFunct6.fdot4)    , FPAdd.Y, FPMul.Y, FPSwapVdV2.N, FPFMACmd(0.U(2.W)), ReadsVD.Y, FPDot4.Y) }
+
 object ScaledMode {
   def insns: Seq[VectorInstruction] = Seq(
     FADD.VV, FADD.VF, FSUB.VV, FSUB.VF, FRSUB.VF,
@@ -228,6 +233,7 @@ object ScaledMode {
     FWMSAC.VV, FWMSAC.VF, FWNMSAC.VV, FWNMSAC.VF,
     FCVT_WID_BF16, FCVT_NRW_BF16
   ).flatMap(_.restrictSEW(0))
+  def dotInsns: Seq[VectorInstruction] = Seq(FDOT4.VV, FDOT4.VF).flatMap(_.restrictSEW(2))
 }
 
 object SLIDEUP     extends OPIInstruction    { val props = Seq(F6(OPIFunct6.slideup)    , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }
