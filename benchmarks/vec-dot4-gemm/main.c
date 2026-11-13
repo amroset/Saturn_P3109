@@ -16,6 +16,7 @@
 //             v18, v22; -DSHARED (P3109BlockDotShared, the explicit-operand
 //             emulation): loaded once into v30, no copies
 //   unscaled  unroll without scales (scaled mode off): the bound
+// -DNOCOPY: pairing without its scale copies, timing only (stale scales, wrong checksum).
 // Scaled variants must give the same checksum (same rounding order per lane).
 // Build at -DPAD=0..60 with -fno-toplevel-reorder; -DREPS=4.
 #pragma GCC optimize("no-tree-vectorize")
@@ -42,11 +43,20 @@ asm(".text\n.skip " PSTR(PAD) "\n.section .text.startup,\"ax\",@progbits\n.skip 
 #define CH (K / 4)        // chunks
 #define KB (K / 32)       // blocks
 
-static uint32_t Wp[G][CH][LANES] __attribute__((aligned(64)));
-static uint8_t  sW[G][KB][32] __attribute__((aligned(64)));  // bytes 0..15: the group's rows
-static uint32_t xw[T][CH] __attribute__((aligned(64)));
-static uint8_t  sx[T][KB];
-static uint32_t y[T][R] __attribute__((aligned(64)));
+// Every array is kept, in this order, in .bss.bench, which the link command
+// places at a fixed address (-Wl,--section-start=.bss.bench=...), DOFF bytes
+// in (-DDOFF=n, rounded up to 64), so the binaries of every build place their
+// data alike whatever code they contain.
+#ifndef DOFF
+#define DOFF 0
+#endif
+#define BENCH __attribute__((used, section(".bss.bench"), aligned(64)))
+static uint8_t dpad[DOFF + 1] BENCH;
+static uint32_t Wp[G][CH][LANES] BENCH;
+static uint8_t  sW[G][KB][32] BENCH;  // bytes 0..15: the group's rows
+static uint32_t xw[T][CH] BENCH;
+static uint8_t  sx[T][KB] BENCH;
+static uint32_t y[T][R] BENCH;
 static volatile uint8_t sink;
 
 static uint32_t seed = 1;
@@ -64,6 +74,11 @@ static uint32_t checksum(const void *p, size_t n) {
 static inline void vsetl(unsigned long avl, unsigned long vt) { asm volatile("vsetvl x0, %0, %1" : : "r"(avl), "r"(vt)); }
 // vfdot4.vx v<vd>, v<vs2>, x
 #define DOT(vd, vs2, x) asm volatile(".insn r 0x57, 0x5, 0x6B, x" #vd ", %0, x" #vs2 : : "r"(x))
+#ifdef NOCOPY
+#define COPY(s)
+#else
+#define COPY(s) asm volatile(s)
+#endif
 #define LDW(v, p) asm volatile("vle32.v " v ", (%0)" : : "r"(p) : "memory")
 #define ZERO(v) asm volatile("vmv.v.i " v ", 0")
 #define STY(v, p) asm volatile("vse32.v " v ", (%0)" : : "r"(p) : "memory")
@@ -84,7 +99,7 @@ static inline void vsetl(unsigned long avl, unsigned long vt) { asm volatile("vs
 static inline void scales(int g, int b, int copies) {
 	vsetl(32, VT8);
 	asm volatile("vle8.v " SC0 ", (%0)" : : "r"(sW[g][b]) : "memory");
-	if (copies) asm volatile("vmv.v.v v14, v10\n\tvmv.v.v v18, v10\n\tvmv.v.v v22, v10");
+	if (copies) COPY("vmv.v.v v14, v10\n\tvmv.v.v v18, v10\n\tvmv.v.v v22, v10");
 }
 
 #define KERNELS(NT, TOKS) \
@@ -139,11 +154,11 @@ KERNELS(4, TOK4)
 //            v18 (copied to v22, v26, v30): all 32 registers; -DSHARED v30
 #define T8 8
 #define H (R / 8)          // 8-row groups (LMUL 1)
-static uint32_t xw8[T8][CH] __attribute__((aligned(64)));
-static uint8_t  sx8[T8][KB];
-static uint64_t xp8[T8][CH] __attribute__((aligned(64)));
-static uint8_t  sWh[H][KB][32] __attribute__((aligned(64)));  // bytes 0..7: the 8-row group's rows
-static uint32_t y8[T8][R] __attribute__((aligned(64)));
+static uint32_t xw8[T8][CH] BENCH;
+static uint8_t  sx8[T8][KB] BENCH;
+static uint64_t xp8[T8][CH] BENCH;
+static uint8_t  sWh[H][KB][32] BENCH;  // bytes 0..7: the 8-row group's rows
+static uint32_t y8[T8][R] BENCH;
 #define VT_DOT1(sc) (0xD0UL | ((unsigned long)(sc) << 11))     // e32 m1
 #define TOK8M1(X) X(0, 0) X(1, 1) X(2, 2) X(3, 3) X(4, 4) X(5, 5) X(6, 6) X(7, 7)
 #define TOK8M2(X) X(0, 0) X(1, 2) X(2, 4) X(3, 6) X(4, 8) X(5, 10) X(6, 12) X(7, 14)
@@ -176,7 +191,8 @@ static void gemm8m1(int sc) {
 #ifdef SHARED
 				asm volatile("vle8.v v30, (%0)" : : "r"(sWh[h][b]) : "memory");
 #else
-				asm volatile("vle8.v v9, (%0)\n\tvmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9" : : "r"(sWh[h][b]) : "memory");
+				asm volatile("vle8.v v9, (%0)" : : "r"(sWh[h][b]) : "memory");
+				COPY("vmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9");
 #endif
 				vsetl(8, VT_DOT1(1));
 			}
@@ -198,7 +214,8 @@ static void gemm8m2(int sc) {
 #ifdef SHARED
 				asm volatile("vle8.v v30, (%0)" : : "r"(sW[g][b]) : "memory");
 #else
-				asm volatile("vle8.v v18, (%0)\n\tvmv.v.v v22, v18\n\tvmv.v.v v26, v18\n\tvmv.v.v v30, v18" : : "r"(sW[g][b]) : "memory");
+				asm volatile("vle8.v v18, (%0)" : : "r"(sW[g][b]) : "memory");
+				COPY("vmv.v.v v22, v18\n\tvmv.v.v v26, v18\n\tvmv.v.v v30, v18");
 #endif
 				vsetl(LANES, VT_DOT(1));
 			}

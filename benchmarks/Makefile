@@ -65,8 +65,11 @@ bmarks = \
 	vec-block-explicit \
 	vec-block-lmul \
 	vec-block-unroll \
+	vec-block-illegal \
+	vec-block-cover \
 	vec-dot4 \
 	vec-dot4-gemm \
+	vec-dot4-attn \
 	opu-gemm \
 	opu-m4-gemm \
 	opu-m4-memcopy \

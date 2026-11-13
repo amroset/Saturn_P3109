@@ -11,6 +11,8 @@
 //             with explicit scale operands would, one shared register each
 //   unscaled  the same loop without scales: the bound for any scale scheme
 //   baseline  the best sequence of unscaled instructions (no scaled mode)
+//   -DNOCOPY  rule A without its copies: timing only, the copies' share of rule A's cost
+//             (lanes 1-3 read stale scales, so outputs differ by design)
 //   scalar    for one or two scales per instruction (E = 32, 16): the unscaled loop plus a
 //             scalar load of each scale, an estimate of an explicit scalar
 //             scale operand (the scale would arrive with the instruction)
@@ -56,6 +58,11 @@ asm(".text\n.skip " PSTR(PAD) "\n.section .text.startup,\"ax\",@progbits\n.skip 
 #define VT_BF16    0x1C9UL
 #define VT_E16     0xC9UL
 static inline void vset(unsigned long vt) { asm volatile("vsetvl x0, %0, %1" : : "r"((unsigned long)VL), "r"(vt)); }
+#ifdef NOCOPY
+#define COPY(s)
+#else
+#define COPY(s) asm volatile(s)
+#endif
 #define LD8(v, p)  asm volatile("vle8.v "  v ", (%0)" : : "r"(p) : "memory")
 #define LD16(v, p) asm volatile("vle16.v " v ", (%0)" : : "r"(p) : "memory")
 #define ST8(v, p)  asm volatile("vse8.v "  v ", (%0)" : : "r"(p) : "memory")
@@ -64,37 +71,46 @@ static inline void vset(unsigned long vt) { asm volatile("vsetvl x0, %0, %1" : :
 #define NCVT(d, s) asm volatile(".insn r 0x57, 0x1, 0x25, " d ", x29, " s) // vfncvtbf16.f.f.w
 
 // ---- data -------------------------------------------------------------------
-static uint16_t X[K][VL] __attribute__((aligned(64)));   // quantrow input, k-major
-static uint8_t  srow[KB][VL] __attribute__((aligned(64)));
-static uint8_t  Q[K][VL] __attribute__((aligned(64)));
-static uint8_t  xa[K][VL] __attribute__((aligned(64))), ra[K][VL] __attribute__((aligned(64)));
-static uint8_t  ya[K][VL] __attribute__((aligned(64)));
-static uint8_t  sx[KB][VL] __attribute__((aligned(64))), sr[KB][VL] __attribute__((aligned(64)));
-static uint8_t  sy[KB][VL] __attribute__((aligned(64)));
-static uint8_t  W[K][VL] __attribute__((aligned(64)));
-static uint8_t  sW[KB][VL] __attribute__((aligned(64)));
-static uint8_t  xg[K] __attribute__((aligned(64)));
-static uint16_t xg16[K] __attribute__((aligned(64)));
-static uint16_t yg[VL] __attribute__((aligned(64)));
-static uint8_t  x8[NE] __attribute__((aligned(64)));
-static uint16_t xq[NE] __attribute__((aligned(64)));
-static uint8_t  sc[NBLK + VL] __attribute__((aligned(64)));
-static uint16_t y16[NE] __attribute__((aligned(64)));
-static uint8_t  q8[NE] __attribute__((aligned(64)));
-static uint16_t bf_s[KB][VL] __attribute__((aligned(64)));  // baseline: 2^(s-128) per row, BF16
-static uint16_t bf_is[KB][VL] __attribute__((aligned(64))); // baseline: 2^(128-s)
-static uint16_t bf_sx[KB][VL] __attribute__((aligned(64))), bf_sr[KB][VL] __attribute__((aligned(64)));
-static uint16_t bf_isy[KB][VL] __attribute__((aligned(64)));
-static uint16_t bf_sc[NBLK], bf_isc[NBLK];
-static uint16_t Yb[K][VL] __attribute__((aligned(64)));    // across-row BF16 outputs
-static uint16_t bf_srowd[KB][VL] __attribute__((aligned(64))); // baseline: 2^(srow-128)
-static uint8_t  r8[NE] __attribute__((aligned(64)));
-static uint8_t  scx[NBLK + VL] __attribute__((aligned(64))), scw[NBLK + VL] __attribute__((aligned(64)));
-static uint16_t bf_cs[NBLK];                               // baseline: 2^(kx + kw)
-static uint8_t  sc16[2 * NBLK + VL] __attribute__((aligned(64)));
-static uint16_t bf_e16[NE] __attribute__((aligned(64))), bf_ie16[NE] __attribute__((aligned(64)));
+// Every array is kept, in this order, in .bss.bench, which the link command
+// places at a fixed address (-Wl,--section-start=.bss.bench=...), DOFF bytes
+// in (-DDOFF=n, rounded up to 64), so the binaries of every build place their
+// data alike whatever code they contain.
+#ifndef DOFF
+#define DOFF 0
+#endif
+#define BENCH __attribute__((used, section(".bss.bench"), aligned(64)))
+static uint8_t dpad[DOFF + 1] BENCH;
+static uint16_t X[K][VL] BENCH;   // quantrow input, k-major
+static uint8_t  srow[KB][VL] BENCH;
+static uint8_t  Q[K][VL] BENCH;
+static uint8_t  xa[K][VL] BENCH, ra[K][VL] BENCH;
+static uint8_t  ya[K][VL] BENCH;
+static uint8_t  sx[KB][VL] BENCH, sr[KB][VL] BENCH;
+static uint8_t  sy[KB][VL] BENCH;
+static uint8_t  W[K][VL] BENCH;
+static uint8_t  sW[KB][VL] BENCH;
+static uint8_t  xg[K] BENCH;
+static uint16_t xg16[K] BENCH;
+static uint16_t yg[VL] BENCH;
+static uint8_t  x8[NE] BENCH;
+static uint16_t xq[NE] BENCH;
+static uint8_t  sc[NBLK + VL] BENCH;
+static uint16_t y16[NE] BENCH;
+static uint8_t  q8[NE] BENCH;
+static uint16_t bf_s[KB][VL] BENCH;  // baseline: 2^(s-128) per row, BF16
+static uint16_t bf_is[KB][VL] BENCH; // baseline: 2^(128-s)
+static uint16_t bf_sx[KB][VL] BENCH, bf_sr[KB][VL] BENCH;
+static uint16_t bf_isy[KB][VL] BENCH;
+static uint16_t bf_sc[NBLK] BENCH, bf_isc[NBLK] BENCH;
+static uint16_t Yb[K][VL] BENCH;    // across-row BF16 outputs
+static uint16_t bf_srowd[KB][VL] BENCH; // baseline: 2^(srow-128)
+static uint8_t  r8[NE] BENCH;
+static uint8_t  scx[NBLK + VL] BENCH, scw[NBLK + VL] BENCH;
+static uint16_t bf_cs[NBLK] BENCH;                             // baseline: 2^(kx + kw)
+static uint8_t  sc16[2 * NBLK + VL] BENCH;
+static uint16_t bf_e16[NE] BENCH, bf_ie16[NE] BENCH;
 static volatile uint8_t sink;
-static uint8_t ref[16384] __attribute__((aligned(64))); // the scaled version's output
+static uint8_t ref[16384] BENCH; // the scaled version's output
 static void keep(const void *out, size_t n) { const uint8_t *b = out; for (size_t i = 0; i < n; i++) ref[i] = b[i]; }
 static void differ(const char *kernel, const void *out, size_t n, int esize) {
 	int d = 0;
@@ -142,7 +158,7 @@ static void quantrow_scaled(int scaled) {
 			LD8("v29", srow[b]);                                      // vd's shared scales
 #else
 			LD8("v9", srow[b]);                                       // rule A: a copy per vd
-			asm volatile("vmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9");
+			COPY("vmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9");
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
@@ -180,7 +196,7 @@ static void addrow_scaled(int scaled) {
 			// rule A: lane L uses x in v(6L+2), r in v(6L+4), y in v(6L+6)... with
 			// scales in the next register: nine copies per block
 			LD8("v3", sx[b]); LD8("v5", sr[b]); LD8("v7", sy[b]);
-			asm volatile("vmv.v.v v9, v3\n\tvmv.v.v v11, v5\n\tvmv.v.v v13, v7\n\t"
+			COPY("vmv.v.v v9, v3\n\tvmv.v.v v11, v5\n\tvmv.v.v v13, v7\n\t"
 			             "vmv.v.v v15, v3\n\tvmv.v.v v17, v5\n\tvmv.v.v v19, v7\n\t"
 			             "vmv.v.v v21, v3\n\tvmv.v.v v23, v5\n\tvmv.v.v v25, v7");
 #endif
@@ -235,7 +251,7 @@ static void gemv_scaled(int scaled) {
 			LD8("v30", sW[b]);
 #else
 			LD8("v3", sW[b]);
-			asm volatile("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
+			COPY("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
@@ -359,7 +375,7 @@ static void dequantrow_scaled(int scaled) {
 			LD8("v30", srow[b]);
 #else
 			LD8("v3", srow[b]);
-			asm volatile("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
+			COPY("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
@@ -397,7 +413,7 @@ static void smulrow_scaled(int scaled) {
 			LD8("v30", sx[b]); LD8("v31", sr[b]);
 #else
 			LD8("v3", sx[b]); LD8("v5", sr[b]);
-			asm volatile("vmv.v.v v7, v3\n\tvmv.v.v v19, v3\n\tvmv.v.v v23, v3\n\t"
+			COPY("vmv.v.v v7, v3\n\tvmv.v.v v19, v3\n\tvmv.v.v v23, v3\n\t"
 			             "vmv.v.v v17, v5\n\tvmv.v.v v21, v5\n\tvmv.v.v v25, v5");
 #endif
 		}

@@ -1,11 +1,13 @@
 // Vector memory bandwidth on the benchmarks' working-set sizes, for the roofline
 // of the block-scaling study: load-only, store-only and copy loops at LMUL 1
-// and 8 over 16 KB, warmed once, then 4 timed passes. Bytes per cycle.
+// and 8 over 16 KB (-DNB=bytes: 262144 for L2), warmed once, then 4 timed passes. Bytes per cycle.
 #include <stdio.h>
 #include <stdint.h>
 #include "util.h"
 
+#ifndef NB
 #define NB 16384
+#endif
 static uint8_t src[NB] __attribute__((aligned(64))), dst[NB] __attribute__((aligned(64)));
 static volatile uint8_t sink;
 static unsigned long t0;
