@@ -5,9 +5,9 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 import saturn.common._
-import saturn.insns.{VectorInstruction, VectorDecoder, FPDot4}
+import saturn.insns._
 
-class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: Parameters) extends RocketVectorDecoder()(p) with HasVectorConsts {
+class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: Parameters) extends RocketVectorDecoder()(p) with HasVectorParams {
 
   io.vector := false.B
   io.legal := false.B
@@ -39,6 +39,35 @@ class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: 
 
   io.vector := v_load || v_store || v_arith_maybe
 
+  // Scaled mode (docs/scaled-mode.md): register uses the pairing rule leaves
+  // undefined are illegal. A block operand's group is aligned and its scale
+  // group ends by v31; the destination overlaps no scale group; OPFMACC.S and
+  // scaled OPFMACC take even vs1 and vs2.
+  val scaled_illegal = WireInit(false.B)
+  if (vParams.scaledMode) {
+    val vscaled = io.vconfig.vtype.fmt_hi(2)
+    val rd = io.inst(11,7)
+    val opu_scaled = if (vParams.useOpu) funct3 === OPFVV &&
+      (funct6 === OPFFunct6.opfmaccs.litValue.U || (funct6 === OPFFunct6.opfmacc.litValue.U && vscaled)) else false.B
+    val opu_bad = opu_scaled && (rs1(0) || rs2(0))
+    val vec_bad = if (vParams.sharedScaleRegs) false.B else {
+      val insns = ScaledMode.insns ++ (if (vParams.scaledDot) ScaledMode.dotInsns else Nil)
+      val ctrl = new VectorDecoder(rs1, rs2, funct3, funct6, io.vconfig.vtype.vsew, insns,
+        Seq(ReadsVS1, ReadsVS2, Wide2VS2, Wide2VD, FPDot4))
+      val l = 1.U(5.W) << scaleLmul(io.vconfig.vtype)
+      val vd_len = Mux(ctrl.bool(Wide2VD), l << 1, l)
+      def overlaps(a: UInt, alen: UInt, b: UInt, blen: UInt) = a < b +& blen && b < a +& alen
+      val blocks = Seq(
+        (ctrl.bool(ReadsVS1), rs1),
+        (ctrl.bool(ReadsVS2) && !ctrl.bool(Wide2VS2), rs2),
+        (!ctrl.bool(Wide2VD) && !ctrl.bool(FPDot4), rd))
+      vscaled && ctrl.matched && blocks.map { case (en, r) =>
+        en && ((r & (l - 1.U)) =/= 0.U || r +& (l << 1) > 32.U || overlaps(rd, vd_len, r +& l, l))
+      }.reduce(_ || _)
+    }
+    scaled_illegal := v_arith_maybe && (opu_bad || vec_bad)
+  }
+
   when (v_load || v_store) {
     val unit = mop === 0.U
     val whole = unit && ((v_load && lumop === lumopWhole) || (v_store && sumop === sumopWhole))
@@ -55,7 +84,7 @@ class EarlyVectorDecode(supported_ex_insns: Seq[VectorInstruction])(implicit p: 
     // data, read from x[rs1] at full width
     val dot_vx = if (supported_ex_insns.exists(_.lookup(FPDot4).value == 1))
       funct3 === OPFVF && funct6 === OPFFunct6.fdot4.litValue.U else false.B
-    io.legal := !io.vconfig.vtype.vill
+    io.legal := !io.vconfig.vtype.vill && !scaled_illegal
     io.read_rs1 := funct3.isOneOf(OPIVX, OPMVX) || dot_vx
     io.read_frs1 := funct3 === OPFVF && !dot_vx
     io.write_rd := funct3 === OPMVV && OPMFunct6(funct6) === OPMFunct6.wrxunary0

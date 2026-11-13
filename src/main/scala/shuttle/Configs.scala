@@ -39,7 +39,7 @@ class WithShuttleVectorUnit(
             vfh = true,
             vLen = vLen,
             decoder = ((p: Parameters) => {
-              val decoder = Module(new EarlyVectorDecode(vParams.supported_ex_insns)(p))
+              val decoder = Module(new EarlyVectorDecode(vParams.supported_ex_insns)(p.alterPartial { case VectorParamsKey => vParams }))
               decoder
             }),
             issueVConfig = false,
