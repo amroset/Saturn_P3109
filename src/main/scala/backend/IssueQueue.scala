@@ -41,12 +41,19 @@ class IssueQueue(depth: Int, nSeqs: Int)(implicit p: Parameters) extends CoreMod
         (e.bits.scaled_vs2, get_arch_mask(scaleRegOf(1, rs2, sc_lmul), sc_lmul)),
         (e.bits.scaled_vd , get_arch_mask(scaleRegOf(2, e.bits.rd, sc_lmul), sc_lmul))
       ) else Nil
+      // OPU explicit-operand evaluation (opuSharedScaleRegs): the shared scale
+      // registers, which the frontend's register pair (vN, vN|1) does not cover
+      val opu_shared_reads = if (vParams.opuSharedScaleRegs) Seq(
+        (e.bits.funct3 === OPFVV && (e.bits.funct6 === OPFFunct6.opfmaccs.litValue.U ||
+          (e.bits.funct6 === OPFFunct6.opfmacc.litValue.U && e.bits.vscaled)),
+         get_arch_mask(opuScaleRegOf(e.bits.rs1), 0.U) | get_arch_mask(opuScaleRegOf(rs2), 0.U))
+      ) else Nil
       h.bits.rintent := (Seq(
         (e.bits.renv1, vs1_arch_mask),
         (e.bits.renv2, vs2_arch_mask),
         (e.bits.renvd, vd_arch_mask),
         (e.bits.renvm, 1.U)
-      ) ++ scale_reads).map(t => Mux(t._1, t._2, 0.U)).reduce(_|_)
+      ) ++ scale_reads ++ opu_shared_reads).map(t => Mux(t._1, t._2, 0.U)).reduce(_|_)
       h.bits.wintent := Mux(e.bits.wvd, vd_arch_mask, 0.U)
     }
   } else {

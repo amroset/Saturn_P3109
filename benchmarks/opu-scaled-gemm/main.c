@@ -23,6 +23,7 @@
 //   coarse (gemm's kernel) 32 rows (columns) share a scale byte: vtype bits
 //          14:12 = 5, so row r takes byte r >> 5, byte 0 of each scale
 //          register; the other 31 bytes are random codes the OPU must ignore.
+//          Then again at 14:12 = 6 and 7, which select the same byte.
 #include <stdio.h>
 #include <stdint.h>
 #include "rvv_mx.h"
@@ -200,6 +201,11 @@ int main(void) {
     failed |= check("coarse", coarse0_out, coarse0_c, "altfmt 0");
     gemm(coarse1_a, coarse1_b, coarse1_sa, coarse1_sb, coarse1_out, 1);
     failed |= check("coarse", coarse1_out, coarse1_c, "altfmt 1");
+    // E = 64 and 128: a register holds 32 rows, so byte 0 serves them all, as at E = 32
+    for (scale_lg = 6; scale_lg <= 7; scale_lg++) {
+        gemm(coarse0_a, coarse0_b, coarse0_sa, coarse0_sb, coarse0_out, 0);
+        failed |= check(scale_lg == 6 ? "coarse E64" : "coarse E128", coarse0_out, coarse0_c, "altfmt 0");
+    }
 #endif
     printf(failed ? "FAILED\n" : "passed\n");
     return failed;

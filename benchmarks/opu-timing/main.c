@@ -2,7 +2,7 @@
 // ISA design. Build with -DBASIC for the single-pattern measurements A-G,
 // -DRULES=1..3 for the pairing rules, -DRULES=4 for the real OPFMACC.S,
 // -DRULES=5 for OPFMACC.S with double-buffered data, -DRULES=6 for FP4
-// (configs with opuFP4);
+// (configs with opuFP4), -DRULES=7 for scale-cache size and explicit operands;
 // by default it times the scale-supply strategies H, P, S, R, W. Each pattern
 // runs once to warm up, then for 1, 2, 3, 4, 6 and 8 times a base count of
 // iterations, twice each; fit.py fits cycles = a + b * iterations, so b is the
@@ -14,6 +14,15 @@
 #include "util.h"
 #include "rvv_mx.h"
 #include "bme.h"
+
+// Layout sweep: -DPAD=n shifts the code after this point by n bytes (with
+// -fno-toplevel-reorder)
+#ifndef PAD
+#define PAD 0
+#endif
+#define PSTR_(x) #x
+#define PSTR(x) PSTR_(x)
+asm(".text\n.skip " PSTR(PAD) "\n.section .text.startup,\"ax\",@progbits\n.skip " PSTR(PAD) "\n.text");
 
 uint8_t a0[32] __attribute__((aligned(64)));
 uint8_t b0[32] __attribute__((aligned(64)));
@@ -207,6 +216,28 @@ TIMED(pat_rd, LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
               LD("v11", s0); LD("v13", s0); LD("v15", s1); LD("v17", s1);
               REP16(K22SS(v2, v4, v6, v8) K22SS(v10, v12, v14, v16)))
 
+// ---- Scale-cache size and explicit operands (-DRULES=7): double-buffered
+// data in v2-v8 and v18-v24. Rule A needs eight scale registers (RD2); on
+// OPUV256D128P3109BlockSharedShuttleConfig both sets read v3-v9 (ED), as an
+// explicit operand naming four scale registers would. ED is meaningful only
+// there; RD2 compares 4 entries (P3109Block) with 8 (P3109BlockS8).
+TIMED(pat_hd2, REP16(K22G(v2, v4, v6, v8) K22G(v18, v20, v22, v24)))
+TIMED(pat_rd2, LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
+               LD("v19", s0); LD("v21", s0); LD("v23", s1); LD("v25", s1);
+               REP16(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+TIMED(pat_ed, LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
+              REP16(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+
+// ---- Copies instead of reloads (-DRULES=8, P3109BlockS8): RD2 with the second
+// set's scales copied from the first (vmv1r.v) instead of loaded again; RC2S
+// places the copies after the first k step, before the second set first reads them.
+#define CP2 asm volatile("vmv1r.v v19, v3\n\tvmv1r.v v21, v5\n\tvmv1r.v v23, v7\n\tvmv1r.v v25, v9");
+#define REP15(x) X8(x) x x x x x x x
+#define LD4S LD("v3", s0); LD("v5", s0); LD("v7", s1); LD("v9", s1);
+TIMED(pat_rc2, LD4S CP2 REP16(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+TIMED(pat_rc2s, LD4S K22SS(v2, v4, v6, v8) CP2 K22SS(v18, v20, v22, v24)
+                REP15(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+
 // ---- FP4 (-DRULES=6, configs with opuFP4): element-format code 6 holds two
 // k steps per byte, so a 32-k block is 16 k22 steps instead of 32. Each block
 // starts with its vsetvli, since drain() resets vtype; the FP8 patterns get
@@ -219,6 +250,16 @@ TIMED(pat_he8, SETFP8 X32(K22G(v2, v4, v6, v8)))
 TIMED(pat_he4, SETFP4 REP16(K22G(v2, v4, v6, v8)))
 TIMED(pat_ra8, SETFP8 SCALES X32(K22SS(v2, v4, v6, v8)))
 TIMED(pat_ra4, SETFP4 SCALES REP16(K22SS(v2, v4, v6, v8)))
+
+// ---- FP4, double-buffered (-DRULES=9): the FP4 counterparts of RULES=7/8 (a 32-k block is 16
+// k22 steps, alternating v2-v8 and v18-v24). HD2_4 unscaled; RD2_4 pairing, both sets' scales
+// loaded (8 entries needed); ED4 explicit, only v3-v9 loaded (meaningful on FP4Shared, where both
+// sets read v3-v9; elsewhere timing only); RC2_4 pairing, the second set's scales copied.
+TIMED(pat_hd2_4, SETFP4 X8(K22G(v2, v4, v6, v8) K22G(v18, v20, v22, v24)))
+TIMED(pat_rd2_4, SETFP4 SCALES LD("v19", s0); LD("v21", s0); LD("v23", s1); LD("v25", s1);
+                 X8(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+TIMED(pat_ed4, SETFP4 SCALES X8(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
+TIMED(pat_rc2_4, SETFP4 SCALES CP2 X8(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
 
 static const unsigned long mult[] = {1, 2, 3, 4, 6, 8};
 
@@ -267,6 +308,30 @@ int main(void) {
     sweep("RA", "OPFMACC.S, single-buffered, scale loads at block start", "32-k block", pat_ra, 8);
     sweep("HD", "unscaled, double-buffered data", "32-k block", pat_hd, 8);
     sweep("RD", "OPFMACC.S, double-buffered data, 8 scale registers", "32-k block", pat_rd, 8);
+    return 0;
+#elif RULES == 7
+    sweep("HE", "unscaled, single-buffered data", "32-k block", pat_he, 8);
+    sweep("HD", "unscaled, double-buffered data", "32-k block", pat_hd, 8);
+    sweep("HD2", "unscaled, double-buffered, v2-v8 and v18-v24", "32-k block", pat_hd2, 8);
+    sweep("RA", "OPFMACC.S, single-buffered, scale loads at block start", "32-k block", pat_ra, 8);
+    sweep("RD", "OPFMACC.S, double-buffered data, 8 scale registers", "32-k block", pat_rd, 8);
+    sweep("RD2", "OPFMACC.S, double-buffered, v2-v8 and v18-v24, 8 scale registers", "32-k block", pat_rd2, 8);
+    sweep("ED", "OPFMACC.S, double-buffered, 4 shared scale registers (Shared build)", "32-k block", pat_ed, 8);
+    return 0;
+#elif RULES == 8
+    sweep("HD2", "unscaled, double-buffered, v2-v8 and v18-v24", "32-k block", pat_hd2, 8);
+    sweep("RD2", "OPFMACC.S, double-buffered, 8 scale loads", "32-k block", pat_rd2, 8);
+    sweep("ED", "OPFMACC.S, double-buffered, 4 scale loads, second set not loaded", "32-k block", pat_ed, 8);
+    sweep("RC2", "OPFMACC.S, double-buffered, 4 scale loads + 4 copies at block start", "32-k block", pat_rc2, 8);
+    sweep("RC2S", "OPFMACC.S, double-buffered, 4 scale loads + 4 copies after the first k step", "32-k block", pat_rc2s, 8);
+    return 0;
+#elif RULES == 9
+    sweep("HE4", "unscaled, FP4 pairs, single-buffered", "32-k block", pat_he4, 8);
+    sweep("HD4", "unscaled, FP4 pairs, double-buffered", "32-k block", pat_hd2_4, 8);
+    sweep("RA4", "OPFMACC.S, FP4, single-buffered, scale loads at block start", "32-k block", pat_ra4, 8);
+    sweep("RD4", "OPFMACC.S, FP4, double-buffered, 8 scale loads", "32-k block", pat_rd2_4, 8);
+    sweep("ED4", "OPFMACC.S, FP4, double-buffered, 4 scale loads (FP4Shared)", "32-k block", pat_ed4, 8);
+    sweep("RC4", "OPFMACC.S, FP4, double-buffered, 4 scale loads + 4 copies", "32-k block", pat_rc2_4, 8);
     return 0;
 #elif RULES == 6
     sweep("HE", "unscaled, FP8", "32-k block", pat_he8, 8);

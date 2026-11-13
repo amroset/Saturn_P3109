@@ -482,6 +482,12 @@ case class VectorParams(
   // Evaluation only (area study): rule A at LMUL 1 only, scales always in vN+1 as
   // one register; the logic a scale-register field in the instruction would need
   scaleLmul1: Boolean = false,
+  // OPFMACC.S scale cache: scale registers held
+  opuScaleEntries: Int = 4,
+  // Evaluation only (explicit-operand study, OPU): the scale register of data
+  // register vN is vN with bit 4 cleared, plus 1, so the two data sets of a
+  // double-buffered kernel (v2-v8, v18-v24) share one set of scale registers
+  opuSharedScaleRegs: Boolean = false,
 
   // for comparisons only
   hazardingMultiplier: Int = 0,
@@ -561,7 +567,11 @@ trait HasVectorParams extends HasVectorConsts { this: HasCoreParameters =>
   def useOpu = vParams.useOpu
   def useMxOPU = vParams.useMxOPU
 
-  def opuParams = OPUParameters()
+  def opuParams = OPUParameters(nScaleEntries = vParams.opuScaleEntries)
+  // OPFMACC.S: the scale register of data register r, rule A (r | 1), or the
+  // shared one (opuSharedScaleRegs)
+  def opuScaleRegOf(r: UInt): UInt =
+    if (vParams.opuSharedScaleRegs) (r & 15.U) | 1.U else r | 1.U
 
   def dmemTagBits = log2Ceil(vParams.vlifqEntries.max(vParams.vsifqEntries))
   def sgmemTagBits = log2Ceil(vParams.vsgifqEntries)

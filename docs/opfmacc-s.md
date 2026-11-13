@@ -79,7 +79,7 @@ With both scales 2^0 (code 128), `OPFMACC.S` computes exactly what `OPFMACC` com
 
 ## Constraints
 
-- An odd `vs1` or `vs2` is reserved. Saturn does not trap it.
+- An odd `vs1` or `vs2` is illegal in scaled-mode configs ([scaled-mode.md](scaled-mode.md)), for `OPFMACC.S` and for `OPFMACC` in scaled mode; elsewhere it is reserved and not trapped.
 - `vs1 = vs2` is allowed: the A and B scales are then the same register.
 - `OPFMACC.S` reads four vector registers (`vs1`, `vs1+1`, `vs2`, `vs2+1`). Ordering with other instructions follows the usual program-order rules for vector register sources.
 - `v0`/`v1` may hold an operand, since the instruction is unmasked. A masked form would exclude this pair.

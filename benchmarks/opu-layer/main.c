@@ -28,6 +28,12 @@
 #include "bme.h"
 
 #define T  64
+#ifndef BS // block size along k: elements per scale (multiple of 4 dividing H and F)
+#define BS 32
+#endif
+#if BS != 32 && (defined(PROBE) || defined(PROBESW) || defined(PROBEK) || defined(PROBE3) || defined(PROBED) || defined(PROBEV))
+#error "the probes assume BS = 32"
+#endif
 #ifdef SMALL // smoke test
 #define H  128
 #define KV 64
@@ -51,17 +57,17 @@ static inline void vset(unsigned long vt) { vsetl(32, vt); }
 // weights W[k][n], scales per 32 k and output feature: codes and 2^(s-128) in FP32
 static uint8_t Wq[H * H] A64, Wk[H * KV] A64, Wv[H * KV] A64, Wo[H * H] A64;
 static uint8_t Wg[H * F] A64, Wu[H * F] A64, Wd[F * H] A64;
-static uint8_t sWq[H / 32 * H] A64, sWk[H / 32 * KV] A64, sWv[H / 32 * KV] A64, sWo[H / 32 * H] A64;
-static uint8_t sWg[H / 32 * F] A64, sWu[H / 32 * F] A64, sWd[F / 32 * H] A64;
-static uint32_t fWq[H / 32 * H] A64, fWk[H / 32 * KV] A64, fWv[H / 32 * KV] A64, fWo[H / 32 * H] A64;
-static uint32_t fWg[H / 32 * F] A64, fWu[H / 32 * F] A64, fWd[F / 32 * H] A64;
+static uint8_t sWq[H / BS * H] A64, sWk[H / BS * KV] A64, sWv[H / BS * KV] A64, sWo[H / BS * H] A64;
+static uint8_t sWg[H / BS * F] A64, sWu[H / BS * F] A64, sWd[F / BS * H] A64;
+static uint32_t fWq[H / BS * H] A64, fWk[H / BS * KV] A64, fWv[H / BS * KV] A64, fWo[H / BS * H] A64;
+static uint32_t fWg[H / BS * F] A64, fWu[H / BS * F] A64, fWd[F / BS * H] A64;
 // activations, BF16 [feature][token]
 static uint16_t X[H * T] A64, Qo[H * T] A64, Ko[KV * T] A64, Vo[KV * T] A64, Oo[H * T] A64;
 static uint16_t Hh[H * T] A64, G[F * T] A64, U[F * T] A64, Ac[F * T] A64, Do[H * T] A64;
 static uint16_t Out_hw[H * T] A64, Out_sw[H * T] A64;
 // quantized activations [feature][token] and their scales [block][token]
-static uint8_t Xq[F * T] A64, sX[F / 32 * T] A64;
-static uint32_t fX[F / 32 * T] A64;
+static uint8_t Xq[F * T] A64, sX[F / BS * T] A64;
+static uint32_t fX[F / BS * T] A64;
 static uint32_t Cacc[64 * T] A64; // sw: one 64-feature block of C^T in FP32
 
 // ---- data (untimed) ------------------------------------------------------
@@ -117,50 +123,50 @@ static unsigned long tock(unsigned long t0, const volatile void *last) {
 	return read_csr(mcycle) - t0;
 }
 
-// ---- quantization of Y[K][T] (BF16) to Yq, one scale per token per 32 k ----
+// ---- quantization of Y[K][T] (BF16) to Yq, one scale per token per BS k ----
 // Scale code from the block's largest magnitude: its BF16 exponent - 5, so
 // the largest scaled value is below 2^7 (binary8p4's largest finite is 224).
 static void amax_code(const uint16_t *y) {           // codes in v20 (e16 m2)
 	vset(VT_E16);
 	asm volatile("vmv.v.i v16, 0");
-	for (int f = 0; f < 32; f++)
+	for (int f = 0; f < BS; f++)
 		asm volatile("vle16.v v18, (%0)\n\tvand.vx v18, v18, %1\n\tvmaxu.vv v16, v16, v18"
 		             : : "r"(y + f * T), "r"(0x7FFFUL) : "memory");
 	asm volatile("vsrl.vi v20, v16, 7\n\tvadd.vi v20, v20, -5\n\tvmax.vx v20, v20, %0\n\tvmin.vx v20, v20, %1"
 	             : : "r"(1UL), "r"(254UL));
 }
 static void quant_hw(const uint16_t *Y, int K, uint8_t *Yq) {
-	for (int b = 0; b < K / 32; b++)
+	for (int b = 0; b < K / BS; b++)
 		for (int h = 0; h < T; h += 32) {
-			const uint16_t *y = Y + b * 32 * T + h;
+			const uint16_t *y = Y + b * BS * T + h;
 			amax_code(y);
 			vset(VT_E8);
 			asm volatile("vnsrl.wi v9, v20, 0\n\tvse8.v v9, (%0)" : : "r"(sX + b * T + h) : "memory");
 			vset(VT_E8S(0));
-			for (int f = 0; f < 32; f++) {
+			for (int f = 0; f < BS; f++) {
 				asm volatile("vle16.v v16, (%0)" : : "r"(y + f * T) : "memory");
 				asm volatile(NCVT("x8", "x16"));
-				asm volatile("vse8.v v8, (%0)" : : "r"(Yq + (b * 32 + f) * T + h) : "memory");
+				asm volatile("vse8.v v8, (%0)" : : "r"(Yq + (b * BS + f) * T + h) : "memory");
 			}
 		}
 }
 static void quant_sw(const uint16_t *Y, int K, uint8_t *Yq) {
-	for (int b = 0; b < K / 32; b++)
+	for (int b = 0; b < K / BS; b++)
 		for (int h = 0; h < T; h += 32) {
-			const uint16_t *y = Y + b * 32 * T + h;
+			const uint16_t *y = Y + b * BS * T + h;
 			amax_code(y);
 			asm volatile("vrsub.vx v24, v20, %0\n\tvsll.vi v24, v24, 7" : : "r"(255UL)); // BF16 2^(128-s)
 			vset(VT_E32);
 			asm volatile("vzext.vf2 v28, v20\n\tvadd.vi v28, v28, -1\n\tvsll.vi v28, v28, 23\n\tvse32.v v28, (%0)"
 			             : : "r"(fX + b * T + h) : "memory"); // FP32 2^(s-128), for the GEMM
-			for (int f = 0; f < 32; f += 4) {
+			for (int f = 0; f < BS; f += 4) {
 				vset(VT_BF16);
 				asm volatile("vle16.v v16, (%0)\n\tvle16.v v18, (%1)\n\tvle16.v v26, (%2)\n\tvle16.v v28, (%3)"
 				             : : "r"(y + f * T), "r"(y + (f + 1) * T), "r"(y + (f + 2) * T), "r"(y + (f + 3) * T) : "memory");
 				asm volatile("vfmul.vv v16, v16, v24\n\tvfmul.vv v18, v18, v24\n\tvfmul.vv v26, v26, v24\n\tvfmul.vv v28, v28, v24");
 				vset(VT_E8);
 				asm volatile(NCVT("x8", "x16") "\n\t" NCVT("x9", "x18") "\n\t" NCVT("x10", "x26") "\n\t" NCVT("x11", "x28"));
-				uint8_t *q = Yq + (b * 32 + f) * T + h;
+				uint8_t *q = Yq + (b * BS + f) * T + h;
 				asm volatile("vse8.v v8, (%0)\n\tvse8.v v9, (%1)\n\tvse8.v v10, (%2)\n\tvse8.v v11, (%3)"
 				             : : "r"(q), "r"(q + T), "r"(q + 2 * T), "r"(q + 3 * T) : "memory");
 			}
@@ -206,18 +212,28 @@ static void clear_tiles(void) {
 		asm volatile("vse16.v v16, (%0)\n\tvse16.v v18, (%1)\n\tvse16.v v20, (%2)\n\tvse16.v v22, (%3)" \
 		             : : "r"(o_), "r"(o_ + T), "r"(o_ + 2 * T), "r"(o_ + 3 * T) : "memory"); \
 	}
-static void gemm_hw(const uint8_t *W, const uint8_t *sW, int N, int K, uint16_t *out) {
-	for (int n0 = 0; n0 < N; n0 += 64) {
+// -DGEMMONLY adds the range of 64-feature tile columns computed (all of them in the layer)
+#ifdef GEMMONLY
+#define COLS_ARGS , int n_lo, int n_hi
+#define ALLCOLS(N) , 0, (N)
+#else
+#define COLS_ARGS
+#define ALLCOLS(N)
+#define n_lo 0
+#define n_hi N
+#endif
+static void gemm_hw(const uint8_t *W, const uint8_t *sW, int N, int K, uint16_t *out COLS_ARGS) {
+	for (int n0 = n_lo; n0 < n_hi; n0 += 64) {
 #ifdef DRAIN // diagnostic: let every older vector store finish first
 		asm volatile("fence" : : : "memory");
 		(void)*(volatile uint8_t *)(n0 ? (void *)&out[n0 * T - 1] : (void *)&Xq[K * T - 1]);
 #endif
 		clear_tiles();
 		vset(VT_E8);
-		for (int b = 0; b < K / 32; b++) {
+		for (int b = 0; b < K / BS; b++) {
 			LD("v17", sW + b * N + n0); LD("v19", sW + b * N + n0 + 32);
 			LD("v21", sX + b * T); LD("v23", sX + b * T + 32);
-			for (int k = b * 32; k < b * 32 + 32; k++) {
+			for (int k = b * BS; k < b * BS + BS; k++) {
 				KSTEP(OPFMACCS, W + k * N + n0, Xq + k * T)
 			}
 		}
@@ -226,7 +242,8 @@ static void gemm_hw(const uint8_t *W, const uint8_t *sW, int N, int K, uint16_t 
 		TILE_OUT(m0, o, 0) TILE_OUT(m1, o, 32) TILE_OUT(m2, o + 32 * T, 0) TILE_OUT(m3, o + 32 * T, 32)
 	}
 }
-// sw: after each 32-k block, C += sW[n] * (tile row * sX[tokens]) in FP32
+
+// sw: after each k block, C += sW[n] * (tile row * sX[tokens]) in FP32
 #define TILE_ACC(mt, roff, coff, sx) \
 	for (unsigned long r = 0; r < 32; r++) { \
 		uint32_t *c_ = Cacc + ((roff) + r) * T + (coff); \
@@ -237,18 +254,18 @@ static void gemm_hw(const uint8_t *W, const uint8_t *sW, int N, int K, uint16_t 
 		else asm volatile("flw f0, 0(%0)\n\tvfmul.vv v12, v12, " sx "\n\tvle32.v v16, (%1)\n\tvfmacc.vf v16, f0, v12\n\tvse32.v v16, (%1)" \
 		                  : : "r"(w_), "r"(c_) : "f0", "memory"); \
 	}
-static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t *out) {
-	for (int n0 = 0; n0 < N; n0 += 64) {
-		for (int b = 0; b < K / 32; b++) {
+static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t *out COLS_ARGS) {
+	for (int n0 = n_lo; n0 < n_hi; n0 += 64) {
+		for (int b = 0; b < K / BS; b++) {
 			clear_tiles();
 			vset(VT_E8);
 #ifdef DBUF // diagnostic: even k in v16..v22, odd k in v24..v30
-			for (int k = b * 32; k < b * 32 + 32; k += 2) {
+			for (int k = b * BS; k < b * BS + BS; k += 2) {
 				KSTEP(OPFMACC, W + k * N + n0, Xq + k * T)
 				KSTEP2(OPFMACC, W + (k + 1) * N + n0, Xq + (k + 1) * T)
 			}
 #else
-			for (int k = b * 32; k < b * 32 + 32; k++) {
+			for (int k = b * BS; k < b * BS + BS; k++) {
 				KSTEP(OPFMACC, W + k * N + n0, Xq + k * T)
 			}
 #endif
@@ -269,6 +286,10 @@ static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t
 		}
 	}
 }
+#ifndef GEMMONLY
+#undef n_lo
+#undef n_hi
+#endif
 
 // ---- element-wise, identical in both versions ------------------------------
 static void add_bf16(const uint16_t *a, const uint16_t *b, uint16_t *c, int n) {
@@ -315,7 +336,7 @@ static unsigned long st[NS];
 static void layer(int hw, uint16_t *out) {
 	for (int i = 0; i < NS; i++) st[i] = 0;
 #define QUANT(Y, K) STAGE(S_QUANT, &Xq[(K) * T - 1], hw ? quant_hw(Y, K, Xq) : quant_sw(Y, K, Xq))
-#define GEMM(s, W, sW, fW, N, K, o) STAGE(s, &(o)[(N) * T - 1], hw ? gemm_hw(W, sW, N, K, o) : gemm_sw(W, fW, N, K, o))
+#define GEMM(s, W, sW, fW, N, K, o) STAGE(s, &(o)[(N) * T - 1], hw ? gemm_hw(W, sW, N, K, o ALLCOLS(N)) : gemm_sw(W, fW, N, K, o ALLCOLS(N)))
 	QUANT(X, H);
 	GEMM(S_GEMM_QKV, Wq, sWq, fWq, H, H, Qo);
 	GEMM(S_GEMM_QKV, Wk, sWk, fWk, KV, H, Ko);
@@ -710,12 +731,82 @@ static void cmp(const char *name, const uint16_t *h, const uint16_t *w, int n) {
 }
 #endif
 
+#ifdef GEMMONLY
+// -DGEMMONLY: block-size sensitivity without the whole layer. For the two GEMM
+// shapes of the layer, K = H (q, k, v, o, gate, up; measured with gate's
+// N = F stride) and K = F (down, N = H), NT tile columns of 64 output features
+// at the full K and the real stride, hw and sw, and both quantizations of the
+// GEMM's input. As in the layer, the weights and their scales come from memory
+// no earlier run touched (cold), the quantized activations are warm. The timed
+// tile columns are never written, so their weights are zeros; the OPU's and
+// the vector unit's timing does not depend on values. Correctness: two tile
+// columns of generated weights, hw against sw.
+#ifndef NT
+#define NT 2
+#endif
+// generated region: 256 bytes of each weight row (tile columns 0..3), 256 scales per block
+static void gen_cols(uint8_t *W, uint8_t *sW, uint32_t *fW, int N, int K, uint32_t seed) {
+	rng_init(seed);
+	for (int k = 0; k < K; k++) {
+		rng_step();
+		vsetl(256, 0xC3UL);
+		asm volatile("vand.vx v24, v16, %0\n\tvsrl.vi v16, v16, 3\n\tvand.vi v16, v16, 7\n\t"
+		             "vadd.vi v16, v16, 4\n\tvsll.vi v16, v16, 3\n\tvor.vv v24, v24, v16\n\tvse8.v v24, (%1)"
+		             : : "r"(0x87UL), "r"(W + (unsigned long)k * N) : "memory");
+	}
+	for (int b = 0; b < K / BS; b++)
+		for (int i = 0; i < 256; i += 64) {
+			rng_step();
+			vsetl(64, 0xC1UL);
+			asm volatile("vand.vi v24, v16, 3\n\tvadd.vx v24, v24, %0\n\tvse8.v v24, (%1)" : : "r"(118UL), "r"(sW + b * N + i) : "memory");
+			vsetl(64, 0xD3UL);
+			asm volatile("vzext.vf4 v0, v24\n\tvadd.vi v0, v0, -1\n\tvsll.vi v0, v0, 23\n\tvse32.v v0, (%0)" : : "r"(fW + b * N + i) : "memory");
+		}
+}
+static uint16_t chk_hw[128 * T] A64;
+static int same_bf16(const uint16_t *a, const uint16_t *b, int n, int *big) {
+	int same = 0; *big = 0;
+	for (int i = 0; i < n; i++) {
+		float x = bf(a[i]), y = bf(b[i]), d = x > y ? x - y : y - x, m = (x > 0 ? x : -x) + (y > 0 ? y : -y);
+		same += a[i] == b[i]; *big += !(d <= 0.02f * m + 1e-6f);
+	}
+	return same;
+}
+static void gemm_only(const char *name, const uint16_t *Y, const uint8_t *W, const uint8_t *sW, const uint32_t *fW,
+                      int N, int K, uint16_t *out) {
+	unsigned long t;
+	quant_hw(Y, K, Xq);
+	gemm_hw(W, sW, N, K, out, 0, 128);
+	asm volatile("fence" : : : "memory"); (void)*(volatile uint16_t *)&out[128 * T - 1];
+	for (int i = 0; i < 128 * T; i++) chk_hw[i] = out[i];
+	quant_sw(Y, K, Xq);
+	gemm_sw(W, fW, N, K, out, 0, 128);
+	asm volatile("fence" : : : "memory"); (void)*(volatile uint16_t *)&out[128 * T - 1];
+	int big, same = same_bf16(chk_hw, out, 128 * T, &big);
+	printf("CHECK %s BS %d: %d of %d outputs identical hw vs sw, %d differ by > 2%%\n", name, BS, same, 128 * T, big);
+	t = tick(); quant_hw(Y, K, Xq); unsigned long qhw = tock(t, &Xq[K * T - 1]);
+	t = tick(); gemm_hw(W, sW, N, K, out, 256, 256 + 64 * NT); unsigned long ghw = tock(t, &out[(256 + 64 * NT) * T - 1]);
+	t = tick(); quant_sw(Y, K, Xq); unsigned long qsw = tock(t, &Xq[K * T - 1]);
+	t = tick(); gemm_sw(W, fW, N, K, out, 256 + 64 * NT, 256 + 128 * NT); unsigned long gsw = tock(t, &out[(256 + 128 * NT) * T - 1]);
+	printf("RESULT %s BS %d K %d N %d | quant hw %lu sw %lu | gemm per tile hw %lu sw %lu\n",
+	       name, BS, K, N, qhw, qsw, ghw / NT, gsw / NT);
+}
+#endif
+
 int main(void) {
+#ifdef GEMMONLY
+	gen_cols(Wg, sWg, fWg, F, H, 5); gen_cols(Wd, sWd, fWd, H, F, 7);
+	gen_bf16(X, H * T, 21); gen_bf16(Ac, F * T, 22);
+	printf("data ready\n");
+	gemm_only("gate", X, Wg, sWg, fWg, F, H, G);
+	gemm_only("down", Ac, Wd, sWd, fWd, H, F, Do);
+	return 0;
+#endif
 	gen_fp8(Wq, H * H, 1); gen_fp8(Wk, H * KV, 2); gen_fp8(Wv, H * KV, 3); gen_fp8(Wo, H * H, 4);
 	gen_fp8(Wg, H * F, 5); gen_fp8(Wu, H * F, 6); gen_fp8(Wd, F * H, 7);
-	gen_scales(sWq, fWq, H / 32 * H, 11); gen_scales(sWk, fWk, H / 32 * KV, 12); gen_scales(sWv, fWv, H / 32 * KV, 13);
-	gen_scales(sWo, fWo, H / 32 * H, 14); gen_scales(sWg, fWg, H / 32 * F, 15); gen_scales(sWu, fWu, H / 32 * F, 16);
-	gen_scales(sWd, fWd, F / 32 * H, 17);
+	gen_scales(sWq, fWq, H / BS * H, 11); gen_scales(sWk, fWk, H / BS * KV, 12); gen_scales(sWv, fWv, H / BS * KV, 13);
+	gen_scales(sWo, fWo, H / BS * H, 14); gen_scales(sWg, fWg, H / BS * F, 15); gen_scales(sWu, fWu, H / BS * F, 16);
+	gen_scales(sWd, fWd, F / BS * H, 17);
 	gen_bf16(X, H * T, 21);
 	printf("data ready\n");
 #ifdef PROBE

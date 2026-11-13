@@ -132,6 +132,11 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
     if (vParams.scaledMode) scale_lg := Mux(dis_scaled, dis_inst.vscale_lg, 0.U)
     macc_fp8 :=  fp_funct6 === OPFFunct6.opfmacc || dis_scaled
     macc :=  (funct6 === OPMFunct6.opmacc) || (fp_funct6 === OPFFunct6.opfmacc) || dis_scaled
+    // opuSharedScaleRegs: the shared scale registers are read too, until the end
+    if (vParams.opuSharedScaleRegs) when (dis_scaled) {
+      rvs1_mask := FillInterleaved(egsPerVReg, dis_vs1_arch_mask | get_arch_mask(opuScaleRegOf(dis_inst.rs1), 0.U))
+      rvs2_mask := FillInterleaved(egsPerVReg, dis_vs2_arch_mask | get_arch_mask(opuScaleRegOf(dis_inst.rs2), 0.U))
+    }
 
     // look up both scale registers. A miss takes a free entry first, else a
     // round-robin one, never the entry the other operand uses. A register
@@ -140,8 +145,8 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
     // rule A: the scale register of vN is vN+1. The frontend assumes the same
     // (PipelinedFaultCheck gives OPFMACC.S EMUL 2); a change of rule must
     // change both.
-    val tA = dis_inst.rs1 | 1.U // scale register of A: vs1+1
-    val tB = dis_inst.rs2 | 1.U // scale register of B: vs2+1
+    val tA = opuScaleRegOf(dis_inst.rs1) // scale register of A: vs1+1
+    val tB = opuScaleRegOf(dis_inst.rs2) // scale register of B: vs2+1
     // one bit per entry: the entry holds that register
     val hitA = VecInit((0 until nScaleEntries).map(e => c_alloc(e) && c_tag(e) === tA)).asUInt
     val hitB = VecInit((0 until nScaleEntries).map(e => c_alloc(e) && c_tag(e) === tB)).asUInt
@@ -189,12 +194,12 @@ class OuterProductSequencer(implicit p: Parameters) extends Sequencer[OuterProdu
   // scale-cache fill: the missing pieces of vs1+1 go through rvs1, those of
   // vs2+1 through rvs2 (when both are the same register, its first two
   // missing pieces)
-  val tA = inst.rs1 | 1.U // scale registers, rule A as at dispatch above
-  val tB = inst.rs2 | 1.U
+  val tA = opuScaleRegOf(inst.rs1) // scale registers, rule A as at dispatch above
+  val tB = opuScaleRegOf(inst.rs2)
   val sameAB = eA === eB // vs1 = vs2: one register, one entry
   // the pieces holding scale bytes in use: the first (vLen/8) >> scale_lg
-  // bytes (all of them unless scaled mode shares bytes among rows)
-  val usedP = VecInit((0 until egsPerVReg).map(p => (p * dLenB).U < ((vLen / 8).U >> scale_lg))).asUInt
+  // bytes (all of them unless scaled mode shares bytes among rows), at least one
+  val usedP = VecInit((0 until egsPerVReg).map(p => (p == 0).B || (p * dLenB).U < ((vLen / 8).U >> scale_lg))).asUInt
   // one bit per piece (element group) of the register: still to be read
   val needA = ~c_pv(eA) & usedP
   val needB = Mux(sameAB, needA & ~UIntToOH(PriorityEncoder(needA), egsPerVReg), ~c_pv(eB) & usedP)

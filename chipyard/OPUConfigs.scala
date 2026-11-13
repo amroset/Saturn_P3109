@@ -32,6 +32,23 @@ class OPUV256D128P3109BlockShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// Evaluation only: an 8-entry OPU scale cache
+class OPUV256D128P3109BlockS8ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109BlockParams.copy(opuScaleEntries = 8)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// Evaluation only: OPU scale registers shared by both data sets of a
+// double-buffered kernel, the best case for explicit scale operands
+class OPUV256D128P3109BlockSharedShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109BlockParams.copy(opuSharedScaleRegs = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class OPUV256D128P3109FiniteShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109FiniteParams) ++
   new chipyard.config.WithSystemBusWidth(128) ++
@@ -41,6 +58,21 @@ class OPUV256D128P3109FiniteShuttleConfig extends Config(
 
 class OPUV256D128P3109FP4ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109FP4Params) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// Evaluation only, FP4 counterparts of BlockS8 and BlockShared
+class OPUV256D128P3109FP4S8ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109FP4Params.copy(opuScaleEntries = 8)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class OPUV256D128P3109FP4SharedShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109FP4Params.copy(opuSharedScaleRegs = true)) ++
   new chipyard.config.WithSystemBusWidth(128) ++
   new shuttle.common.WithShuttleTileBeatBytes(16) ++
   new shuttle.common.WithNShuttleCores(1) ++
