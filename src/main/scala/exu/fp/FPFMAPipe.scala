@@ -9,7 +9,7 @@ import freechips.rocketchip.tile._
 import saturn.common._
 import saturn.insns._
 
-class FMAPipeIO(fmtHiWidth: Int = 0)(implicit p: Parameters) extends Bundle {
+class FMAPipeIO(fmtHiWidth: Int = 0, scaledMode: Boolean = false)(implicit p: Parameters) extends Bundle {
   val valid = Input(Bool())
   val frm = Input(UInt(3.W))
   val addsub = Input(Bool())
@@ -26,13 +26,16 @@ class FMAPipeIO(fmtHiWidth: Int = 0)(implicit p: Parameters) extends Bundle {
   val a = Input(UInt(64.W))
   val b = Input(UInt(64.W))
   val c = Input(UInt(64.W))
+  // Scaled mode: per 8-bit position, the scale
+  // codes of a, b, c and the result (128 where not a block)
+  val scale = if (scaledMode) Some(Input(Vec(8, Vec(4, UInt(8.W))))) else None
 
   val out = Output(UInt(64.W))
   val exc = Output(Vec(8, UInt(5.W)))
 }
 
-abstract class FMAPipe(fmtHiWidth: Int = 0)(implicit p: Parameters) extends FPUModule()(p) {
-  val io = IO(new FMAPipeIO(fmtHiWidth))
+abstract class FMAPipe(fmtHiWidth: Int = 0, scaledMode: Boolean = false)(implicit p: Parameters) extends FPUModule()(p) {
+  val io = IO(new FMAPipeIO(fmtHiWidth, scaledMode))
 }
 
 class TandemFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean)(implicit p: Parameters) extends FMAPipe()(p) {
@@ -163,8 +166,27 @@ class MulAddRecFNPipeUnrounded(latency: Int, expWidth: Int, sigWidth: Int) exten
   io.invalidExc     := Pipe(valid_stage0, mulAddRecFNToRaw_postMul.io.invalidExc, round_regs).bits
 }
 
-class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats])(implicit p: Parameters) extends FMAPipe(P3109Formats.fmtHiWidth(p3109))(p) {
+class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: Option[P3109Formats])(implicit p: Parameters) extends FMAPipe(P3109Formats.fmtHiWidth(p3109), p3109.exists(_.block))(p) {
   require (depth >= 4)
+  // Scaled mode (docs/scaled-mode.md): every lane has an exponent of at least
+  // 10 bits, enough for a scaled 8-bit operand (2^-270 to 2^269), and applies
+  // the scales by adding to the operands' exponents, before its one rounding
+  val scaledMode = p3109.exists(_.block)
+  def laneType(t: FType) = if (scaledMode && t.exp < 10) FType(10, t.sig) else t
+  // x times scale code `code`, its exponent also moved by `off` (P3109
+  // omegaBlockDecode, 5.4.1): NaN scale, or zero scale times Inf or NaN, gives
+  // NaN; zero scale otherwise gives zero
+  def scaleRec(x: UInt, code: UInt, off: SInt, t: FType): UInt = {
+    val sign = x(t.exp + t.sig)
+    val exp = x(t.exp + t.sig - 1, t.sig - 1)
+    val isZero = exp(t.exp, t.exp - 2) === 0.U
+    val isSpecial = exp(t.exp, t.exp - 1).andR
+    val qnan = Cat(0.U(1.W), 7.U(3.W), 0.U((t.exp - 2).W), 1.U(1.W), 0.U((t.sig - 2).W))
+    val moved = Cat(sign, (exp.zext + P3109Scale.exponent(code) + off)(t.exp, 0), x(t.sig - 2, 0))
+    Mux(code === 255.U || (code === 0.U && isSpecial), qnan,
+      Mux(code === 0.U, Cat(sign, 0.U((t.exp + t.sig).W)),
+        Mux(isZero || isSpecial, x, moved)))
+  }
 
   // core8 is E5M3, or the wider core of a precision sweep (P3109Sweep.scala).
   // Each FP16 core also computes 8-bit results. When core8 has a wider exponent
@@ -309,17 +331,18 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
     FType.D -> 0, FType.S -> 0, FType.H -> 0, MXFType.BF16 -> 0, core8 -> 0
   )) { (counts, fma_type) => {
     val usedFor = ftype_used_for(fma_type)
+    val lane_type = laneType(fma_type)
     val fma_valid = usedFor.map(valid_signals(_)).foldLeft(0.U)(_|_).asBool
     val s1_valid = RegNext(fma_valid, false.B)
-    val fma = Module(new MulAddRecFNPipeUnrounded(depth-2, fma_type.exp, fma_type.sig))
+    val fma = Module(new MulAddRecFNPipeUnrounded(depth-2, lane_type.exp, lane_type.sig))
     fma.io.validin      := s1_valid
     fma.io.op           := Mux(s1_valid, s1_op, 0.U)
     fma.io.roundingMode := Mux(s1_valid, s1_frm, 0.U)
     fma.io.detectTininess := hardfloat.consts.tininess_afterRounding
 
-    val a = Wire(UInt(fma_type.recodedWidth.W))
-    val b = Wire(UInt(fma_type.recodedWidth.W))
-    val c = Wire(UInt(fma_type.recodedWidth.W))
+    val a = Wire(UInt(lane_type.recodedWidth.W))
+    val b = Wire(UInt(lane_type.recodedWidth.W))
+    val c = Wire(UInt(lane_type.recodedWidth.W))
 
     a := DontCare
     b := DontCare
@@ -331,8 +354,8 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
 
       val select_a = io.a_eew === cond._1 && (cond._2 || a_altfmt === cond._3)
       val in_a = recoded_in(data_type)._1(index)
-      val wide_a = if (data_type != fma_type) {
-        widen(in_a, data_type, fma_type, select_a)
+      val wide_a = if (data_type != lane_type) {
+        widen(in_a, data_type, lane_type, select_a)
       } else {
         in_a
       }
@@ -342,8 +365,8 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
 
       val select_b = io.b_eew === cond._1 && (cond._2 || b_altfmt === cond._3)
       val in_b = recoded_in(data_type)._2(index)
-      val wide_b = if (data_type != fma_type) {
-        widen(in_b, data_type, fma_type, select_b)
+      val wide_b = if (data_type != lane_type) {
+        widen(in_b, data_type, lane_type, select_b)
       } else {
         in_b
       }
@@ -353,8 +376,8 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
 
       val select_c = io.c_eew === cond._1 && (cond._2 || c_altfmt === cond._3)
       val in_c = recoded_in(data_type)._3(index)
-      val wide_c = if (data_type != fma_type) {
-        widen(in_c, data_type, fma_type, select_c)
+      val wide_c = if (data_type != lane_type) {
+        widen(in_c, data_type, lane_type, select_c)
       } else {
         in_c
       }
@@ -365,17 +388,24 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
       val select_out = out_select(data_type)
       if (data_type == core8){
         val (out_bits, exc_flags) = p3109 match {
-          case Some(f) => rawUnroundedToP3109(fma_type, fma.io.out, fma.io.invalidExc, out_fmt_pipe, frm_pipe.bits, f)
-          case None    => rawUnroundedToFp8(fma_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
+          case Some(f) => rawUnroundedToP3109(lane_type, fma.io.out, fma.io.invalidExc, out_fmt_pipe, frm_pipe.bits, f)
+          case None    => rawUnroundedToFp8(lane_type, fma.io.out, fma.io.invalidExc, out_altfmt_pipe.bits, frm_pipe.bits, false.B)
         }
 
+        // scaled mode: a zero or NaN result scale (P3109 5.4.2)
+        val res_bits = io.scale match {
+          case Some(sv) =>
+            val sr = Pipe(io.valid, sv(index)(3), depth-1).bits
+            Mux(sr === 255.U, "h80".U(8.W), Mux(sr === 0.U && out_bits =/= "h80".U, 0.U(8.W), out_bits))
+          case None => out_bits
+        }
         when (select_out) {
-          out(data_type)(index) := Pipe(fma.io.validout, out_bits, depth-4).bits
+          out(data_type)(index) := Pipe(fma.io.validout, res_bits, depth-4).bits
           exc(data_type).slice(index, index + ftype_exc_lanes(data_type)).foreach { _ := Pipe(fma.io.validout, exc_flags, depth-4).bits }
         }
       }
       else {
-        val narrower = Module(new hardfloat.RoundAnyRawFNToRecFN(fma_type.exp, fma_type.sig + 2, data_type.exp, data_type.sig, 0))
+        val narrower = Module(new hardfloat.RoundAnyRawFNToRecFN(lane_type.exp, lane_type.sig + 2, data_type.exp, data_type.sig, 0))
         narrower.io.in := fma.io.out
         narrower.io.roundingMode := frm_pipe.bits
         narrower.io.detectTininess := hardfloat.consts.tininess_afterRounding
@@ -389,9 +419,20 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
       }
     }
 
-    fma.io.a := RegEnable(a, fma_valid)
-    fma.io.b := RegEnable(Mux(io.addsub, 1.U << (fma_type.ieeeWidth - 1), b), fma_valid)
-    fma.io.c := RegEnable(Mux(io.mul, (a ^ b) & (1.U << fma_type.ieeeWidth), c), fma_valid)
+    // scaled mode: lane k computes 8-bit position k's element. With e(x) the
+    // scale exponent of operand x (0 if not a block) and er the result block's
+    // (0 for a BF16 result, or a zero or NaN result scale):
+    //   Z / 2^er = (a 2^(e(a) - er)) (b 2^e(b)) + c 2^(e(c) - er)
+    val (sa, sb, sc) = io.scale match {
+      case Some(sv) =>
+        val s = sv(counts(core8))
+        val er = Mux(io.out_eew =/= 0.U || s(3) === 0.U || s(3) === 255.U, 0.S, P3109Scale.exponent(s(3)))
+        (scaleRec(a, s(0), 0.S - er, lane_type), scaleRec(b, s(1), 0.S, lane_type), scaleRec(c, s(2), 0.S - er, lane_type))
+      case None => (a, b, c)
+    }
+    fma.io.a := RegEnable(sa, fma_valid)
+    fma.io.b := RegEnable(Mux(io.addsub, 1.U << (lane_type.ieeeWidth - 1), sb), fma_valid)
+    fma.io.c := RegEnable(Mux(io.mul, (sa ^ sb) & (1.U << lane_type.ieeeWidth), sc), fma_valid)
     counts.map { case (key, value) => (key, if (usedFor.contains(key)) value + 1 else value) }
   }}
 
@@ -407,7 +448,7 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
   // result of an operation with an 8-bit operand (8-bit operations widen only
   // to BF16); operations on BF16 or wider operands keep IEEE's signed zero.
   if (p3109.isDefined) {
-    val in8_pipe = Pipe(io.valid, io.a_eew === 0.U || io.b_eew === 0.U, depth-1).bits
+    val in8_pipe = Pipe(io.valid, io.a_eew === 0.U || io.b_eew === 0.U || io.c_eew === 0.U, depth-1).bits
     when (out_select(MXFType.BF16) && in8_pipe) {
       io.out := VecInit(out(MXFType.BF16).map(x => Mux(x(14, 0) === 0.U, 0.U(16.W), x))).asUInt
     }
@@ -591,6 +632,24 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
     fma_pipe.io.frm := io.pipe(0).bits.frm
     fma_pipe.io.op := fmaCmd
 
+    // Scaled mode: position k of segment i is element 8i + k of the group, or
+    // 4i + k/2 for a BF16 result (8-bit sources sit in the low byte of each
+    // 16-bit slot). a: vs2 (vd for vfmadd and kin); b: vs1 (1 for adds); c: vd
+    // (vs2 when swapped, vs1 for adds, 0 for multiplies)
+    fma_pipe.io.scale.foreach { sv =>
+      val in = io.pipe(0).bits
+      val fma = ctrl.bool(FPMul) && ctrl.bool(FPAdd)
+      val swap = fma && ctrl.bool(FPSwapVdV2)
+      for (k <- 0 until 8) {
+        val e = Mux(vd_eew =/= 0.U, eidx + (4 * i + k / 2).U, eidx + (8 * i + k).U)
+        def scaleOf(en: Bool, data: UInt) = Mux(en, extractElem(data, 0.U, e >> in.scale_lg.get)(7, 0), 128.U(8.W))
+        val s1 = scaleOf(in.scaled_vs1.get, in.rvs1_scale.get)
+        val s2 = scaleOf(in.scaled_vs2.get, in.rvs2_scale.get)
+        val sd = scaleOf(in.scaled_vd.get, in.rvd_scale.get)
+        sv(k) := VecInit(Mux(swap, sd, s2), s1, Mux(fma, Mux(swap, s2, sd), s1), sd)
+      }
+    }
+
     fma_pipe.io
   }
 
@@ -610,86 +669,35 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
   io.scalar_write.valid := false.B
   io.scalar_write.bits := DontCare
 
-  // Scaled mode (docs/scaled-mode.md): a scaled instruction runs on one
-  // ScaledFMALane per element, with the operand roles of the lanes above, and
-  // its result replaces theirs. An 8-bit result fills the element group (dLenB
-  // lanes); a BF16 result, half as many elements, uses the first dLenB/2.
-  if (p3109.exists(_.block) && mxFPFMA) {
+  // vfdot4 (P3109Formats.dot, docs/vfdot4.md): one ScaledDotLane per FP32
+  // element, whose result replaces the FMA lanes'.
+  if (p3109.exists(_.dot) && mxFPFMA) {
     val in = io.pipe(0).bits
-    val scaled = in.scaled_vs1.get || in.scaled_vs2.get || in.scaled_vd.get
-    val lanes = Seq.tabulate(dLenB) { j =>
-      val lane = Module(new ScaledFMALane(depth, p3109.get))
-      def elem(data: UInt, eew: UInt) = extractElem(data, eew, eidx + j.U)(15, 0)
-      // element eidx + j takes scale byte (eidx + j) >> log2(E)
-      def scaleOf(en: Bool, data: UInt) = Mux(en, extractElem(data, 0.U, (eidx + j.U) >> in.scale_lg.get)(7, 0), 128.U(8.W))
-      val v1 = elem(in.rvs1_data, vs1_eew)
-      val v2 = elem(in.rvs2_data, vs2_eew)
-      val vd = elem(in.rvd_data, in.rvd_eew)
-      val s1 = scaleOf(in.scaled_vs1.get, in.rvs1_scale.get)
-      val s2 = scaleOf(in.scaled_vs2.get, in.rvs2_scale.get)
-      val sd = scaleOf(in.scaled_vd.get, in.rvd_scale.get)
-      val fma = ctrl.bool(FPMul) && ctrl.bool(FPAdd)
-      val swap = fma && ctrl.bool(FPSwapVdV2)
-      // a: vs2 (vd for vfmadd and kin); b: vs1 (1 for adds); c: vd (vs2 when
-      // swapped, vs1 for adds, 0 for multiplies)
-      lane.io.a := Mux(swap, vd, v2)
-      lane.io.a_wide := Mux(swap, in.rvd_eew =/= 0.U, vs2_eew =/= 0.U)
-      lane.io.sa := Mux(swap, sd, s2)
-      lane.io.b := v1
-      lane.io.b_wide := vs1_eew =/= 0.U
-      lane.io.sb := s1
-      lane.io.c := Mux(fma, Mux(swap, v2, vd), v1)
-      lane.io.c_wide := Mux(fma, Mux(swap, vs2_eew, in.rvd_eew) =/= 0.U, vs1_eew =/= 0.U)
-      lane.io.sc := Mux(fma, Mux(swap, s2, sd), s1)
-      lane.io.sr := sd
-      lane.io.out_wide := vd_eew =/= 0.U
-      lane.io.addsub := ctrl.bool(FPAdd) && !ctrl.bool(FPMul)
-      lane.io.mul := ctrl.bool(FPMul) && !ctrl.bool(FPAdd)
-      lane.io.op := fmaCmd
+    val outp = io.pipe(depth-1).bits
+    // In scaled mode vs2 is a block; so is vs1 (.vv), while .vx's x[rs1]
+    // carries its four elements in bits 31:0 and their scale in 39:32.
+    def isDot(b: ExecuteMicroOp) = b.isOpf && b.funct6 === OPFFunct6.fdot4.litValue.U
+    val vx = in.funct3 === VectorConsts.OPFVF // vfdot4.vx
+    val dots = Seq.tabulate(dLenB / 4) { j =>
+      val lane = Module(new ScaledDotLane(depth, p3109.get))
+      def elem(data: UInt) = extractElem(data, 2.U, eidx + j.U)(31, 0)
+      def scaleOf(data: UInt) = extractElem(data, 0.U, (eidx + j.U) >> in.scale_lg.get)(7, 0)
+      lane.io.a := elem(in.rvs2_data)
+      lane.io.b := Mux(vx, in.scalar(31, 0), elem(in.rvs1_data))
+      lane.io.c := elem(in.rvd_data)
+      lane.io.sa := Mux(in.scaled_vs2.get, scaleOf(in.rvs2_scale.get), 128.U)
+      lane.io.sb := Mux(vx, Mux(in.scaled_vs2.get, in.scalar(39, 32), 128.U),
+                            Mux(in.scaled_vs1.get, scaleOf(in.rvs1_scale.get), 128.U))
       lane.io.frm := in.frm
       lane.io.altfmt := altfmt
-      lane.io.valid := io.pipe(0).valid && scaled
+      lane.io.valid := io.pipe(0).valid && isDot(in)
       lane
     }
-
-    val outp = io.pipe(depth-1).bits
-    when (outp.scaled_vs1.get || outp.scaled_vs2.get || outp.scaled_vd.get) {
-      val wide = outp.vd_eew =/= 0.U
-      io.write.bits.data := Mux(wide,
-        VecInit(lanes.take(dLenB / 2).map(_.io.out)).asUInt,
-        VecInit(lanes.map(_.io.out(7, 0))).asUInt)
-      io.set_fflags.bits := lanes.zipWithIndex.map { case (l, j) =>
-        Mux(Mux(wide, (j < dLenB / 2).B && outp.wmask(2 * j % dLenB), outp.wmask(j)), l.io.exc, 0.U)
+    when (isDot(outp)) {
+      io.write.bits.data := VecInit(dots.map(_.io.out)).asUInt
+      io.set_fflags.bits := dots.zipWithIndex.map { case (l, j) =>
+        Mux(outp.wmask(4 * j), l.io.exc, 0.U)
       }.reduce(_|_)
-    }
-
-    // vfdot4 (P3109Formats.dot, docs/vfdot4.md): one ScaledDotLane per FP32
-    // element. In scaled mode vs2 is a block; so is vs1 (.vv), while .vx's
-    // x[rs1] carries its four elements in bits 31:0 and their scale in 39:32.
-    if (p3109.get.dot) {
-      def isDot(b: ExecuteMicroOp) = b.isOpf && b.funct6 === OPFFunct6.fdot4.litValue.U
-      val vx = in.funct3 === VectorConsts.OPFVF // vfdot4.vx
-      val dots = Seq.tabulate(dLenB / 4) { j =>
-        val lane = Module(new ScaledDotLane(depth, p3109.get))
-        def elem(data: UInt) = extractElem(data, 2.U, eidx + j.U)(31, 0)
-        def scaleOf(data: UInt) = extractElem(data, 0.U, (eidx + j.U) >> in.scale_lg.get)(7, 0)
-        lane.io.a := elem(in.rvs2_data)
-        lane.io.b := Mux(vx, in.scalar(31, 0), elem(in.rvs1_data))
-        lane.io.c := elem(in.rvd_data)
-        lane.io.sa := Mux(in.scaled_vs2.get, scaleOf(in.rvs2_scale.get), 128.U)
-        lane.io.sb := Mux(vx, Mux(in.scaled_vs2.get, in.scalar(39, 32), 128.U),
-                              Mux(in.scaled_vs1.get, scaleOf(in.rvs1_scale.get), 128.U))
-        lane.io.frm := in.frm
-        lane.io.altfmt := altfmt
-        lane.io.valid := io.pipe(0).valid && isDot(in)
-        lane
-      }
-      when (isDot(outp)) {
-        io.write.bits.data := VecInit(dots.map(_.io.out)).asUInt
-        io.set_fflags.bits := dots.zipWithIndex.map { case (l, j) =>
-          Mux(outp.wmask(4 * j), l.io.exc, 0.U)
-        }.reduce(_|_)
-      }
     }
   }
 }

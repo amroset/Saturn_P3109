@@ -18,7 +18,13 @@ one makes `vtype` illegal (`vill`).
 | 14:12 | log2 of E, the elements per scale byte: 1, 2, 4, …, 128 |
 
 `vsetvli`'s immediate stops at bit 10, so use `vsetvl`, e.g. `vtype` = 0x58C0
-for e8, m1, ta, ma, binary8p4, scaled, E = 32 (0x08C0 for E = 1).
+for e8, m1, ta, ma, binary8p4, scaled, E = 32 (0x08C0 for E = 1). A
+`vsetvli` or `vsetivli` writes zeros to bits 14:11 and so leaves scaled mode.
+
+The bits only change the instructions listed below, at their SEW (8, or 32 for
+`vfdot4`, [vfdot4.md](vfdot4.md)); at another SEW and for every other
+instruction they are ignored, not illegal. A nonzero E with bit 11 clear is
+ignored too, except by `OPFMACC.S`, which always uses it.
 
 ## The rule
 
@@ -36,7 +42,13 @@ not written: they are the result block's scale, an input (P3109 §5.7).
 - At LMUL L, a block operand's data group vN..vN+L−1 (N a multiple of L) has
   its scales in the group after it, from vN+L (vN+1 at LMUL 1); element i of
   the group takes byte i >> log2(E) of that scale area. Fractional LMUL counts
-  as 1. Other placements are reserved; Saturn does not trap them.
+  as 1.
+- Illegal (Saturn raises an illegal-instruction exception): a block operand
+  whose N is not a multiple of L; a scale group past v31 (N + 2L > 32); a
+  destination group, wide or not, that overlaps any block operand's scale
+  group, e.g. `vfadd.vv v9, v8, v10` or `vfwadd.vv v2, v1, v8` at LMUL 1. A
+  source may be another operand's scale register (`vfadd.vv v8, v2, v3`): both
+  only read it.
 - Along the blocks (one scale per E ≥ 16 consecutive elements), LMUL > 1 lets
   one scale-register load serve several blocks (`benchmarks/vec-block-lmul`).
 - A scalar (`.vf`) operand and a BF16 operand are not blocks: their scale is 1.
@@ -68,6 +80,9 @@ BF16 result:   r = round(Z)
 8-bit result:  r = round(Z / 2^(sr−128)),  sr = the scale of element i in vd+1
 ```
 
+- In the destructive forms the result block's scale is also an operand's:
+  `vfmacc` and kin have s_c = s_r (vd is the addend), `vfmadd` and kin s_a = s_r
+  (vd is a factor), so that operand enters unscaled.
 - One rounding, in `frm`'s mode. An 8-bit result follows ωBlockProject (§5.4.2):
   `sr` = 255 gives NaN; `sr` = 0 gives zero for anything but NaN.
 - `.sat` (ConvertToBlock) saturates as the unscaled `.sat` form does.
@@ -100,7 +115,7 @@ byte i >> log2(E) of vs1+1, column j byte j >> log2(E) of vs2+1. E = 1 (the
 default) is a scale per row and column, as MX needs; the MX block runs along
 k, across instructions. E = 32 gives one scale to the whole tile side, for
 coarse scaling such as 128 × 128 weight blocks, and lets the OPU fill only the
-scale register's first element group.
+scale register's first element group; E = 64 and 128 select the same byte.
 
 ## Saturn implementation
 
@@ -108,6 +123,9 @@ None of this is architectural:
 
 - **Decode.** At dispatch (`Backend.scala`), an instruction of `ScaledMode.insns`
   with the bit set gets `scaled_vs1`, `scaled_vs2`, `scaled_vd`: which operands are blocks.
+  The illegal register uses are caught earlier, in `EarlyDecode.scala`
+  (`scaled_illegal`); `benchmarks/vec-block-illegal` checks them and their
+  legal neighbours.
 - **Hazards.** Each block operand adds its scale register (`rs|1`) to the
   instruction's read intents (`IssueQueue`, `ExecuteSequencer`).
 - **Scale reads.** The execute sequencer reads the scale registers' element
@@ -119,12 +137,14 @@ None of this is architectural:
   instruction with E ≥ 2.
 - **FPConv.** The scales reach the existing P3109 block datapath (`P3109Scale.decode`,
   `P3109Scale.project`), spread like the widening data.
-- **FMA.** A scaled operand (up to 2^±142) fits none of the FMA's lanes
-  (exponents of 5 and 8 bits), so scaled instructions run on separate lanes,
-  one per element (`ScaledFMA.scala`): a recoded format with a 10-bit exponent
-  and an 8-bit significand, wide enough to hold every scaled operand exactly.
-  The scales are added to the operands' exponents, the result scale subtracted,
-  and the exact result rounded once.
+- **FMA.** A scaled operand (up to 2^±142, and 2^±270 with the result scale
+  folded in) fits none of the FMA's narrow lanes (exponents of 5 and 8 bits),
+  so in scaled-mode configs every lane narrower than 10 exponent bits is
+  widened to 10 (`SegmentedFMAPipe.laneType`: FP32 (10,24), FP16 (10,11), BF16
+  (10,8), E5M3 (10,4); FP64 keeps its 11). Widening is exact and each lane
+  still rounds once, so unscaled results and latency are unchanged. The scales
+  are added to the widened operands' exponents, the result scale subtracted,
+  and the exact result rounded once (`scaleRec`).
 - **Tests.** `benchmarks/vec-block` runs 17 instructions in scaled mode
   (`vfadd`, `vfsub`, `vfmul`, `vfmacc`, `vfnmsac`, `vfmadd`, `vfmul.vf`,
   `vfrsub.vf`, `vfwadd`, `vfwsub`, `vfwmul`, `vfwmacc`, `vfwmul.vf`,
@@ -132,6 +152,13 @@ None of this is architectural:
   six of them in all five rounding modes, and each again with E = 2, 8 and 32,
   the unused scale bytes random: 133 tests of 128 elements, against a gfloat
   reference (`gen_data/gen_data.py`) built on `fma_ref`'s exact arithmetic.
+  `benchmarks/vec-block-cover` adds 49 tests of 256 elements on the same
+  reference: eight of these instructions at LMUL 2 and 4 with E = 1 and 32,
+  three at LMUL 4 with E = 2 (scales in the second scale register), `vfmul.vf`
+  at LMUL 8, eight masked (mask undisturbed) and three with a tail (vl 21 of
+  32, tail undisturbed), inactive and tail elements checked unchanged. A
+  vector instruction with vstart ≠ 0 outside the memory pipeline raises an
+  illegal-instruction exception (`PipelinedFaultCheck`), scaled or not.
 - **Cost** (`benchmarks/vec-block-timing`, cycles per LMUL-1 instruction):
   one cycle per scale read, none when the buffer holds the group. FP8 → FP8:
   2 unscaled, 4 with E = 1, 3 with E ≥ 2 (destinations rotating); widening and

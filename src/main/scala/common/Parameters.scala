@@ -532,6 +532,7 @@ case class VectorParams(
   // the tandem one would read them as OCP FP8
   require(p3109.isEmpty || !useMxFPFMA || useSegmentedFPFMA, "P3109 needs the segmented vector FMA")
   require(!scaledMode || useMxFPFMA, "scaled mode needs the 8-bit FMA")
+  require(!scaledMode || useSegmentedFPFMA, "scaled mode needs the segmented FMA")
 
   // Scaled mode (P3109Formats.block): vtype bit 11 marks an instruction as
   // scaled and bits 14:12 hold log2 of its elements per scale byte, so vtype needs six bits
