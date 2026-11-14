@@ -254,6 +254,7 @@ static void gemm_hw(const uint8_t *W, const uint8_t *sW, int N, int K, uint16_t 
 		else asm volatile("flw f0, 0(%0)\n\tvfmul.vv v12, v12, " sx "\n\tvle32.v v16, (%1)\n\tvfmacc.vf v16, f0, v12\n\tvse32.v v16, (%1)" \
 		                  : : "r"(w_), "r"(c_) : "f0", "memory"); \
 	}
+#ifdef SWOLD // the first software kernel: two FP ops per element, every tile through Cacc
 static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t *out COLS_ARGS) {
 	for (int n0 = n_lo; n0 < n_hi; n0 += 64) {
 		for (int b = 0; b < K / BS; b++) {
@@ -274,6 +275,59 @@ static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t
 			asm volatile("vle32.v v24, (%0)\n\tvle32.v v28, (%1)" : : "r"(fX + b * T), "r"(fX + b * T + 32) : "memory");
 			TILE_ACC(m0, 0, 0, "v24") TILE_ACC(m1, 0, 32, "v28") TILE_ACC(m2, 32, 0, "v24") TILE_ACC(m3, 32, 32, "v28")
 		}
+#else
+// m1..m3: C += (sW[n] * sX[t]) * tile row, sW * sX formed by an integer exponent add.
+// m0 stays in its tile, rescaled by s_b / s_(b+1) after each block (exact for
+// power-of-two scales), and leaves through Cacc after the last block.
+#define SW_EA(n) ((long)fW[b * N + n0 + (n)] - (127L << 23))
+#define ROW_ST(mt, r, roff, coff, sx) VMV_VR(v8, r, mt); \
+	asm volatile("vadd.vx v12, " sx ", %0\n\tvfmul.vv v16, v8, v12\n\tvse32.v v16, (%1)" \
+	             : : "r"(SW_EA((roff) + (r))), "r"(Cacc + ((roff) + (r)) * T + (coff)) : "memory");
+#define ROW_AC(mt, r, roff, coff, sx) VMV_VR(v8, r, mt); \
+	asm volatile("vadd.vx v12, " sx ", %0\n\tvle32.v v16, (%1)\n\tvfmacc.vv v16, v12, v8\n\tvse32.v v16, (%1)" \
+	             : : "r"(SW_EA((roff) + (r))), "r"(Cacc + ((roff) + (r)) * T + (coff)) : "memory");
+#define ROW_RS(r) VMV_VR(v0, r, m0); \
+	asm volatile("vadd.vx v4, v20, %0\n\tvfmul.vv v0, v0, v4" \
+	             : : "r"((long)fW[b * N + n0 + (r)] - (long)fW[(b + 1) * N + n0 + (r)])); \
+	VMV_RV(m0, r, v0);
+static void gemm_sw(const uint8_t *W, const uint32_t *fW, int N, int K, uint16_t *out COLS_ARGS) {
+	const int nb = K / BS;
+	for (int n0 = n_lo; n0 < n_hi; n0 += 64) {
+		clear_tiles();
+		for (int b = 0; b < nb; b++) {
+			if (b) {
+				vset(VT_E32);
+				asm volatile("vmv.v.i v12, 0");
+				OPMVINBCAST(m1, v12); OPMVINBCAST(m2, v12); OPMVINBCAST(m3, v12);
+			}
+			vset(VT_E8);
+			for (int k = b * BS; k < b * BS + BS; k++) {
+				KSTEP(OPFMACC, W + k * N + n0, Xq + k * T)
+			}
+			SETTLE_POINT
+			vset(VT_E32);
+			asm volatile("vle32.v v24, (%0)\n\tvle32.v v28, (%1)" : : "r"(fX + b * T), "r"(fX + b * T + 32) : "memory");
+			if (b + 1 < nb) {
+				asm volatile("vle32.v v20, (%0)\n\tvsub.vv v20, v24, v20\n\tvadd.vx v20, v20, %1"
+				             : : "r"(fX + (b + 1) * T), "r"(127L << 23) : "memory"); // sX_b / sX_(b+1)
+				if (b == 0)
+					for (unsigned long r = 0; r < 32; r++) {
+						ROW_RS(r) ROW_ST(m1, r, 0, 32, "v28") ROW_ST(m2, r, 32, 0, "v24") ROW_ST(m3, r, 32, 32, "v28")
+					}
+				else
+					for (unsigned long r = 0; r < 32; r++) {
+						ROW_RS(r) ROW_AC(m1, r, 0, 32, "v28") ROW_AC(m2, r, 32, 0, "v24") ROW_AC(m3, r, 32, 32, "v28")
+					}
+			} else if (b == 0)
+				for (unsigned long r = 0; r < 32; r++) {
+					ROW_ST(m0, r, 0, 0, "v24") ROW_ST(m1, r, 0, 32, "v28") ROW_ST(m2, r, 32, 0, "v24") ROW_ST(m3, r, 32, 32, "v28")
+				}
+			else
+				for (unsigned long r = 0; r < 32; r++) {
+					ROW_ST(m0, r, 0, 0, "v24") ROW_AC(m1, r, 0, 32, "v28") ROW_AC(m2, r, 32, 0, "v24") ROW_AC(m3, r, 32, 32, "v28")
+				}
+		}
+#endif
 		for (int r = 0; r < 64; r += 2) {
 			vset(VT_E32);
 			asm volatile("vle32.v v0, (%0)\n\tvle32.v v4, (%1)\n\tvle32.v v8, (%2)\n\tvle32.v v12, (%3)"

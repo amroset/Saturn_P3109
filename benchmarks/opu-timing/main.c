@@ -261,6 +261,123 @@ TIMED(pat_rd2_4, SETFP4 SCALES LD("v19", s0); LD("v21", s0); LD("v23", s1); LD("
 TIMED(pat_ed4, SETFP4 SCALES X8(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
 TIMED(pat_rc2_4, SETFP4 SCALES CP2 X8(K22SS(v2, v4, v6, v8) K22SS(v18, v20, v22, v24)))
 
+// ---- Software-scaling variants (-DRULES=10, SB1): how fast can software apply
+// block scales on this chip? Per 32-k block of a 64x64 output (tiles m0..m3 as
+// in H). C in memory: m0 = rows 0-31 cols 0-31, m1 = rows 0-31 cols 32-63,
+// m2 = rows 32-63 cols 0-31, m3 = rows 32-63 cols 32-63. Scales are powers of
+// two: the row scale arrives as an exponent increment (ea[r] = log2 sA << 23),
+// the column scales as FP32 bit patterns in v20-v27 (v24-v31 at LMUL 8), so
+// sA[r] * sB[:] is one integer add, which runs on the integer sequencer in
+// parallel with the FP one. All scales are 1 here (timing only).
+float cbuf2[64][64] __attribute__((aligned(64)));
+int32_t ea[64] __attribute__((aligned(64)));
+#define SET32 asm volatile("vsetvli x0, %0, e32, m4, ta, ma" : : "r"(32));
+#define SET64 asm volatile("vsetvli x0, %0, e32, m8, ta, ma" : : "r"(64));
+#define CLR(mt) asm volatile("vmv.v.i v8, 0"); OPMVINBCAST(mt, v8);
+// one tile row: move out, S = sA[r] * sB, C += S * P (one FP op)
+#define DR4(mt, r, crow, sb) VMV_VR(v8, r, mt); \
+    asm volatile("lw t0, 0(%0)\n\tvadd.vx v12, " sb ", t0\n\tvle32.v v16, (%1)\n\t" \
+                 "vfmacc.vv v16, v12, v8\n\tvse32.v v16, (%1)" \
+                 : : "r"(&ea[r]), "r"(crow) : "t0", "memory");
+// G4: move-out bound, all 128 rows; MC / MC8: C round-trip bound at LMUL 4 / 8
+TIMED(pat_g4, SET32 for (unsigned long r = 0; r < 32; r++) {
+                  VMV_VR(v8, r, m0); VMV_VR(v8, r, m1); VMV_VR(v8, r, m2); VMV_VR(v8, r, m3); }
+              setvl8();)
+TIMED(pat_mc, SET32 for (unsigned long r = 0; r < 64; r++) {
+                  asm volatile("vle32.v v16, (%0)\n\tvse32.v v16, (%0)\n\tvle32.v v16, (%1)\n\tvse32.v v16, (%1)"
+                               : : "r"(cbuf2[r]), "r"(&cbuf2[r][32]) : "memory"); }
+              setvl8();)
+TIMED(pat_mc8, SET64 for (unsigned long r = 0; r < 64; r++) {
+                   asm volatile("vle32.v v16, (%0)\n\tvse32.v v16, (%0)" : : "r"(cbuf2[r]) : "memory"); }
+               setvl8();)
+// W1: as W, one FP op per element
+TIMED(pat_w1, X32(K22) SET32
+              for (unsigned long r = 0; r < 32; r++) {
+                  DR4(m0, r, cbuf2[r], "v20") DR4(m1, r, &cbuf2[r][32], "v24")
+                  DR4(m2, r, cbuf2[32 + r], "v20") DR4(m3, r, &cbuf2[32 + r][32], "v24") }
+              CLR(m0) CLR(m1) CLR(m2) CLR(m3) setvl8();)
+// W2: W1 with LMUL-8 C accesses (rows of m0/m1 and of m2/m3 are adjacent)
+#define DR8(ma, mb, r, crow) SET32 VMV_VR(v0, r, ma); VMV_VR(v4, r, mb); SET64 \
+    asm volatile("lw t0, 0(%0)\n\tvadd.vx v8, v24, t0\n\tvle32.v v16, (%1)\n\t" \
+                 "vfmacc.vv v16, v8, v0\n\tvse32.v v16, (%1)" \
+                 : : "r"(&ea[r]), "r"(crow) : "t0", "memory");
+TIMED(pat_w2, X32(K22)
+              for (unsigned long r = 0; r < 32; r++) { DR8(m0, m1, r, cbuf2[r]) DR8(m2, m3, r, cbuf2[32 + r]) }
+              SET32 CLR(m0) CLR(m1) CLR(m2) CLR(m3) setvl8();)
+// W3: W1 software-pipelined over tile pairs: pair (m0, m1) computes rows 0-31
+// of block b while (m2, m3) drains rows 32-63 of block b-1, one row of each
+// tile per k step, then the roles swap. B is loaded in both phases.
+#define KX LD("v2", a0); LD("v4", b0); LD("v5", b1); OPFMACC(m0, v4, v2); OPFMACC(m1, v5, v2);
+#define KY LD("v3", a1); LD("v4", b0); LD("v5", b1); OPFMACC(m2, v4, v3); OPFMACC(m3, v5, v3);
+TIMED(pat_w3,
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KX SET32 DR4(m2, k, cbuf2[32 + k], "v20") DR4(m3, k, &cbuf2[32 + k][32], "v24") }
+      SET32 CLR(m2) CLR(m3)
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KY SET32 DR4(m0, k, cbuf2[k], "v20") DR4(m1, k, &cbuf2[k][32], "v24") }
+      SET32 CLR(m0) CLR(m1) setvl8();)
+// W4: accumulators stay in the tiles: at each block boundary every row is
+// multiplied by the power-of-two ratio of the old to the new scales and moved
+// back in; no C traffic and no clears (the last block's scale is applied once
+// at the end, not timed)
+#define RS4(mt, r, sb) VMV_VR(v8, r, mt); \
+    asm volatile("lw t0, 0(%0)\n\tvadd.vx v12, " sb ", t0\n\tvfmul.vv v8, v8, v12" : : "r"(&ea[r]) : "t0"); \
+    VMV_RV(mt, r, v8);
+TIMED(pat_w4, X32(K22) SET32
+              for (unsigned long r = 0; r < 32; r++) {
+                  RS4(m0, r, "v20") RS4(m1, r, "v24") RS4(m2, r, "v20") RS4(m3, r, "v24") }
+              setvl8();)
+// W4b: W4 with four rows in flight (moves out, scale, moves in), so the OPU
+// moves of one row overlap the FP work of the others
+#define RSB(mt, r, sb) VMV_VR(v0, r, mt); VMV_VR(v4, r + 1, mt); VMV_VR(v8, r + 2, mt); VMV_VR(v12, r + 3, mt); \
+    asm volatile("lw t0, 0(%0)\n\tlw t1, 4(%0)\n\tlw t2, 8(%0)\n\tlw t3, 12(%0)\n\t" \
+                 "vadd.vx v16, " sb ", t0\n\tvadd.vx v28, " sb ", t1\n\tvfmul.vv v0, v0, v16\n\tvfmul.vv v4, v4, v28\n\t" \
+                 "vadd.vx v16, " sb ", t2\n\tvadd.vx v28, " sb ", t3\n\tvfmul.vv v8, v8, v16\n\tvfmul.vv v12, v12, v28" \
+                 : : "r"(&ea[r]) : "t0", "t1", "t2", "t3"); \
+    VMV_RV(mt, r, v0); VMV_RV(mt, r + 1, v4); VMV_RV(mt, r + 2, v8); VMV_RV(mt, r + 3, v12);
+TIMED(pat_w4b, X32(K22) SET32
+               for (unsigned long r = 0; r < 32; r += 4) {
+                   RSB(m0, r, "v20") RSB(m1, r, "v24") RSB(m2, r, "v20") RSB(m3, r, "v24") }
+               setvl8();)
+// W5: hybrid, to balance the OPU sequencer (in-tile rows: two moves) against
+// the L2 port (memory rows: a 256-B round trip). W5a: m0, m1 in the tiles,
+// m2, m3 through memory; W5b: m0 in the tile, m1-m3 through memory.
+// Memory rows use v8/v12/v16 (DR4), in-tile rows v0/v4 and v28 for their scale.
+#define RS1(mt, r, sb) VMV_VR(v0, r, mt); \
+    asm volatile("lw t0, 0(%0)\n\tvadd.vx v28, " sb ", t0\n\tvfmul.vv v0, v0, v28" : : "r"(&ea[r]) : "t0"); \
+    VMV_RV(mt, r, v0);
+TIMED(pat_w5a, X32(K22) SET32
+               for (unsigned long r = 0; r < 32; r++) {
+                   RS1(m0, r, "v20") DR4(m2, r, cbuf2[32 + r], "v20")
+                   RS1(m1, r, "v24") DR4(m3, r, &cbuf2[32 + r][32], "v24") }
+               CLR(m2) CLR(m3) setvl8();)
+TIMED(pat_w5b, X32(K22) SET32
+               for (unsigned long r = 0; r < 32; r++) {
+                   RS1(m0, r, "v20") DR4(m1, r, &cbuf2[r][32], "v24")
+                   DR4(m2, r, cbuf2[32 + r], "v20") DR4(m3, r, &cbuf2[32 + r][32], "v24") }
+               CLR(m1) CLR(m2) CLR(m3) setvl8();)
+// W6, W7: W3's pipelining with the hybrid: W6 keeps m2 in its tile (its pair
+// drains while m0, m1 compute), W7 keeps m0 and m2 in their tiles
+TIMED(pat_w6,
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KX SET32 RS1(m2, k, "v20") DR4(m3, k, &cbuf2[32 + k][32], "v24") }
+      SET32 CLR(m3)
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KY SET32 DR4(m0, k, cbuf2[k], "v20") DR4(m1, k, &cbuf2[k][32], "v24") }
+      SET32 CLR(m0) CLR(m1) setvl8();)
+TIMED(pat_w7,
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KX SET32 RS1(m2, k, "v20") DR4(m3, k, &cbuf2[32 + k][32], "v24") }
+      SET32 CLR(m3)
+      for (unsigned long k = 0; k < 32; k++) {
+          setvl8(); KY SET32 RS1(m0, k, "v20") DR4(m1, k, &cbuf2[k][32], "v24") }
+      SET32 CLR(m1) setvl8();)
+static void set_sb(void) { // sB = 1.0 in v20-v31 (v20-v27 at LMUL 4, v24-v31 at LMUL 8)
+    asm volatile("vsetvli x0, %0, e32, m4, ta, ma\n\tvfmv.v.f v20, %1\n\tvfmv.v.f v24, %1\n\tvfmv.v.f v28, %1"
+                 : : "r"(32), "f"(1.0f));
+    setvl8();
+}
+
 static const unsigned long mult[] = {1, 2, 3, 4, 6, 8};
 
 // Prints "tag iterations cycles" lines for fit.py
@@ -332,6 +449,33 @@ int main(void) {
     sweep("RD4", "OPFMACC.S, FP4, double-buffered, 8 scale loads", "32-k block", pat_rd2_4, 8);
     sweep("ED4", "OPFMACC.S, FP4, double-buffered, 4 scale loads (FP4Shared)", "32-k block", pat_ed4, 8);
     sweep("RC4", "OPFMACC.S, FP4, double-buffered, 4 scale loads + 4 copies", "32-k block", pat_rc2_4, 8);
+    return 0;
+#elif RULES == 10
+    asm volatile("vsetvli x0, %0, e32, m4, ta, ma\n\tvfmv.v.f v12, %1" : : "r"(32), "f"(1.0f));
+    setvl8();
+#ifndef SB1B
+    sweep("H", "2x2 unscaled", "32-k block", pat_h, 8);
+    sweep("W", "software baseline (current)", "32-k block", pat_w, 8);
+#endif
+    set_sb();
+#ifndef SB1B
+    sweep("G4", "move-out only, 128 rows", "32-k block", pat_g4, 8);
+    sweep("MC", "C load+store only, LMUL 4", "32-k block", pat_mc, 8);
+    sweep("MC8", "C load+store only, LMUL 8", "32-k block", pat_mc8, 8);
+    sweep("W1", "software, one FP op per element", "32-k block", pat_w1, 8);
+    sweep("W2", "software, one FP op, LMUL-8 C", "32-k block", pat_w2, 8);
+    sweep("W3", "software, one FP op, tile pairs pipelined", "32-k block", pat_w3, 8);
+    sweep("W4", "software, accumulators rescaled in the tiles", "32-k block", pat_w4, 8);
+#else
+    sweep("W4b", "software, in the tiles, 4 rows in flight", "32-k block", pat_w4b, 8);
+    set_sb();
+    sweep("W5a", "software, hybrid: m0-m1 in the tiles, m2-m3 memory", "32-k block", pat_w5a, 8);
+    sweep("W5b", "software, hybrid: m0 in the tile, m1-m3 memory", "32-k block", pat_w5b, 8);
+#endif
+#ifdef SB1C
+    sweep("W6", "software, pipelined pairs, m2 in its tile", "32-k block", pat_w6, 8);
+    sweep("W7", "software, pipelined pairs, m0 and m2 in their tiles", "32-k block", pat_w7, 8);
+#endif
     return 0;
 #elif RULES == 6
     sweep("HE", "unscaled, FP8", "32-k block", pat_he8, 8);
