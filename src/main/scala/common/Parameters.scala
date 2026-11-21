@@ -399,35 +399,56 @@ object P3109Domain {
   case object Finite extends P3109Domain
 }
 
+// A signed P3109 format of K bits and precision P
+case class P3109Fmt(k: Int, p: Int, finite: Boolean) {
+  require(k == 8 || k == 4)
+}
+
 // Precision sweep (exu/fp/P3109Sweep.scala). `extra` adds precisions in the
 // extended domain. Format codes 2, 3, ... select them. No instruction sets the
 // upper code bits yet. `genericReader` makes the units read 8-bit operands with
 // p3109ToCore. With `genericReader` and no `extra`, the build is the sweep's
 // baseline: binary8p4 and binary8p3 on p3109ToCore.
+//
+// `fp4` adds Binary4p2sf at format code 6 (docs/fp4-vector.md), one value in
+// the low nibble of each byte.
 case class P3109Formats(
   p4: P3109Domain = P3109Domain.Extended,
   p3: P3109Domain = P3109Domain.Extended,
   block: Boolean = false, // Scaled mode in FPConv and the FMA (vtype bit 11)
   dot: Boolean = false,   // vfdot4 in the FMA (docs/vfdot4.md)
   genericReader: Boolean = false,
-  extra: Seq[Int] = Nil
+  extra: Seq[Int] = Nil,
+  fp4: Boolean = false
 ) {
   require(!(genericReader && block), "the precision sweep has no block scaling")
   require(!dot || block, "vfdot4 needs scaled mode")
   require(extra.isEmpty || genericReader, "extra precisions need genericReader = true")
   require(extra.forall(p => p >= 2 && p <= 7 && p != 3 && p != 4) && extra.distinct.size == extra.size,
     "extra precisions must be distinct, in 2..7, and not 3 or 4")
+  require(!fp4 || extra.size <= 4, "with fp4, extra precisions take codes 2..5")
 
   def p4Finite = p4 == P3109Domain.Finite
   def p3Finite = p3 == P3109Domain.Finite
-  // (precision, finite) by format code: 0 is binary8p4, 1 binary8p3, then the extras
-  def byCode: Seq[(Int, Boolean)] = Seq((4, p4Finite), (3, p3Finite)) ++ extra.map((_, false))
-  def maxPrecision = byCode.map(_._1).max
-  def fmtWidth = log2Ceil(byCode.size) // at least 1, bit 0 being altfmt
+  // (format code, format): 0 is binary8p4, 1 binary8p3, then the extras, and 6 Binary4p2sf
+  def byCode: Seq[(Int, P3109Fmt)] =
+    Seq(0 -> P3109Fmt(8, 4, p4Finite), 1 -> P3109Fmt(8, 3, p3Finite)) ++
+    extra.zipWithIndex.map { case (p, i) => (i + 2) -> P3109Fmt(8, p, false) } ++
+    (if (fp4) Seq(P3109Formats.fp4Code -> P3109Fmt(4, 2, true)) else Nil)
+  def formats = byCode.map(_._2)
+  def maxPrecision = formats.map(_.p).max
+  def fmtWidth = log2Ceil(byCode.map(_._1).max + 1) // at least 1, bit 0 being altfmt
 }
 
 object P3109Formats {
-  // Format-code bits above altfmt; none unless the build lists extra precisions
+  val fp4Code = 6 // as for the OPU's FP4 pairs
+  // Whether a format code selects Binary4p2sf. Without extra precisions the
+  // codes are 0, 1 and 6, so bit 2 alone decides; codes 2..5 and 7 are reserved.
+  def isFP4(fmt: UInt, formats: P3109Formats): Bool =
+    if (!formats.fp4) false.B
+    else if (formats.extra.isEmpty) fmt(2)
+    else fmt === fp4Code.U
+  // Format-code bits above altfmt; none unless the build lists extra precisions or fp4
   def fmtHiWidth(p3109: Option[P3109Formats]) = p3109.map(_.fmtWidth - 1).getOrElse(0)
 }
 

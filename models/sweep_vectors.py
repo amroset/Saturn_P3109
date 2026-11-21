@@ -1,6 +1,9 @@
 """Test vectors for a precision-sweep build's conversion and FMA units.
 
-    sweep_vectors.py <outdir> <P for code 0> <P for code 1> [P for code 2 ...]
+    sweep_vectors.py <outdir> <P for code 0> <P for code 1> [P for code 2 ...] [fp4]
+
+"fp4" adds Binary4p2sf at format code 6 (P3109Formats.fp4), one code in the
+low nibble of each byte.
 
 Writes, for tb_sweep_unit.cpp, one record per cycle with the format code on
 the units' pins and the expected codes and exception flags:
@@ -31,7 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "benchmarks", "common-data-gen"))
 sys.path.insert(0, HERE)
 
-from gfloat_ref import BF16, FRM, convert, p3109_format  # noqa: E402
+from gfloat_ref import BF16, FRM, convert, p3109_format, p3109_fp4  # noqa: E402
 from fma_ref import OPS, exact, project                  # noqa: E402
 from flags_ref import flags, pack, bf16_exact, bf16_is_snan, RODD  # noqa: E402
 from rto_ref import convert_bf16_odd                     # noqa: E402
@@ -46,10 +49,15 @@ def lanes_word(vals, width):
     return sum(v << (width * l) for l, v in enumerate(vals))
 
 
+def fmt_info(P):
+    """gfloat format for a precision, or "fp4"."""
+    return p3109_fp4() if P == "fp4" else p3109_format(P, False)
+
+
 def narrow_job(args):
     """Every BF16 pattern, four per record, for one (code, mode, sat)."""
     code, P, frm, sat = args
-    fi, out = p3109_format(P, False), bytearray()
+    fi, out = fmt_info(P), bytearray()
     rec_flags = NARROW | (RTO if frm == RODD else 0) | (SAT if sat else 0)
     for base in range(0, 1 << 16, 4):
         ins = range(base, base + 4)
@@ -64,8 +72,9 @@ def narrow_job(args):
 def fma_job(args):
     """Every operand pair, eight per record, for one (code, op, mode)."""
     code, P, op, frm, rotations = args
-    fi, out = p3109_format(P, False), bytearray()
-    pairs = [(a, b) for a in range(256) for b in range(256)]
+    fi, out = fmt_info(P), bytearray()
+    n = 1 << fi.k
+    pairs = [(a, b) for a in range(n) for b in range(n)]
     for rot in range(rotations):
         for base in range(0, len(pairs), 8):
             chunk = pairs[base:base + 8]
@@ -92,22 +101,26 @@ def fma_job(args):
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         sys.exit("usage: sweep_vectors.py <outdir> <P for code 0> <P for code 1> [P for code 2 ...]")
-    outdir, precisions = sys.argv[1], [int(p) for p in sys.argv[2:]]
+    outdir = sys.argv[1]
+    fp4 = sys.argv[-1] == "fp4"
+    codes = list(enumerate(int(p) for p in sys.argv[2:len(sys.argv) - fp4]))
+    if fp4:
+        codes.append((6, "fp4"))
     os.makedirs(outdir, exist_ok=True)
 
     conv = bytearray()
-    for code, P in enumerate(precisions):
-        fi = p3109_format(P, False)
-        for base in range(0, 256, 4):
+    for code, P in codes:
+        fi = fmt_info(P)
+        for base in range(0, 1 << fi.k, 4):
             ins = range(base, base + 4)
             conv += CONV.pack(code, 0, WIDEN, 0, 0, lanes_word(ins, 16),
                               lanes_word([convert(fi, BF16, c) for c in ins], 16),
                               0xFFFFFFFFFFFFFFFF, 0)
 
     modes = list(RND)
-    narrow = [(c, P, frm, sat) for c, P in enumerate(precisions)
+    narrow = [(c, P, frm, sat) for c, P in codes
               for frm in modes + [RODD] for sat in (False, True)]
-    fma = [(c, P, op, frm, 8 if frm == 0 else 1) for c, P in enumerate(precisions)
+    fma = [(c, P, op, frm, 8 if frm == 0 else 1) for c, P in codes
            for op in OPS for frm in modes]
     with Pool(os.cpu_count() or 1) as pool:
         for chunk in pool.imap(narrow_job, narrow):

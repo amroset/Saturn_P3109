@@ -59,6 +59,11 @@ def p3109_format(precision, finite):
                              Domain.Finite if finite else Domain.Extended)
 
 
+def p3109_fp4():
+    """P3109 Binary4p2sf: signed, finite, 4 bits, precision 2."""
+    return format_info_p3109(4, 2, Signedness.Signed, Domain.Finite)
+
+
 # The same, for each 8-bit standard a build can use (VectorParams.p3109)
 FP8_STANDARDS = {
     "ocp": FP8,

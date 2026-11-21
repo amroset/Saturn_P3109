@@ -5,10 +5,11 @@ import chisel3.util._
 import saturn.common._
 
 // P3109 binary8p4 (altfmt = 0) or binary8p3 (altfmt = 1) to IEEE E5M3, which
-// holds every value of both formats exactly
+// holds every value of both formats exactly. With fp4, Binary4p2sf from the low
+// nibble (docs/fp4-vector.md).
 object p3109ToE5M3 {
 
-  def apply(in: Bits, altfmt: Bool, formats: P3109Formats): UInt = {
+  def apply(in: Bits, altfmt: Bool, formats: P3109Formats, fp4: Bool = false.B): UInt = {
     val sign = in(7)
     val isZero = in === "h00".U
     val isNaN = in === "h80".U
@@ -29,9 +30,19 @@ object p3109ToE5M3 {
       sign ## 0.U(5.W) ## exp3(0) ## sig3,
       sign ## (exp3 - 1.U) ## sig3 ## 0.U(1.W))
 
-    Mux(isNaN, "b0_11111_100".U(9.W),
+    val fp8 = Mux(isNaN, "b0_11111_100".U(9.W),
       Mux(isInf, sign ## "b11111_000".U(8.W),
         Mux(isZero, 0.U(9.W),
           Mux(altfmt, p3, p4))))
+    if (!formats.fp4) fp8 else Mux(fp4, fp4ToE5M3(in(3, 0)), fp8)
+  }
+}
+
+// Binary4p2sf to E5M3: 0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, and code 8 NaN
+object fp4ToE5M3 {
+  def apply(in: UInt): UInt = {
+    val mag = VecInit(Seq("b00000_000", "b01101_000", "b01110_000", "b01110_100",
+                          "b01111_000", "b01111_100", "b10000_000", "b10000_100").map(_.U(8.W)))(in(2, 0))
+    Mux(in === 8.U, "b0_11111_100".U(9.W), in(3) ## mag)
   }
 }

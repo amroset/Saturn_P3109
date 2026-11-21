@@ -6,8 +6,9 @@
 #
 #   ./run_sweep_check.sh <CONFIG> <workdir>
 #
-# CONFIG is one of the P3109Sweep*V256D128ShuttleConfig configs, or
-# P3109V256D128ShuttleConfig for the pair on its usual reader. Generate its
+# CONFIG is one of the P3109Sweep*V256D128ShuttleConfig configs (Sweep FP4:
+# the pair and Binary4p2sf at code 6), or P3109V256D128ShuttleConfig for the
+# pair on its usual reader. Generate its
 # Verilog first:
 #   make -C sims/verilator verilog CONFIG=<CONFIG>
 #
@@ -31,6 +32,7 @@ GFLOAT_PYTHON=${GFLOAT_PYTHON:-$HOME/venvs/gfloat/bin/python}
 # Precisions in format-code order: 4 and 3, then the extras in the config's name
 case "$config" in
 	P3109V256D128ShuttleConfig) precisions="4 3" ;;
+	P3109SweepFP4V256D128ShuttleConfig) precisions="4 3 fp4" ;;
 	P3109Sweep*V256D128ShuttleConfig)
 		digits=${config#P3109Sweep}
 		digits=${digits%V256D128ShuttleConfig}

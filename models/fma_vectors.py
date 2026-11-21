@@ -2,7 +2,7 @@
 lanes, widened to 10 exponent bits, that compute 8-bit and BF16 results of
 block operands.
 
-    fma_vectors.py <outdir> <std: p3109 | p3109-finite>
+    fma_vectors.py <outdir> <std: p3109 | p3109-finite> [fp4]
 
 Writes fma.bin for tb_fma_lane.cpp, one 80-byte record per cycle,
 
@@ -35,6 +35,14 @@ Per format (altfmt 0, 1), every (x, y) code pair, rotated over the lanes:
                  fma with a BF16 c (vfwmul, vfwadd, vfwmacc)
 plus a sample of the .wv form, a BF16 a and an 8-bit c (vfwadd.wv), with
 zeros and exact cancellations.
+
+With "fp4" (configs with P3109Formats.fp4, docs/fp4-vector.md), Binary4p2sf at
+format code 6, which the record's alt byte carries (alt 0, 1 are the 8-bit
+formats): every (a, b, c) triple of fma with every sign (op) and rounding
+mode, unscaled; every triple again with edge scales, with random scales and
+the result near FP4's range, and with result scales at the overflow and
+underflow thresholds; every pair of add and mul; every pair of the widening
+mul, add and fma (BF16 results); and a sample of .wv with an FP4 c.
 """
 import math
 import os
@@ -49,7 +57,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "benchmarks", "common-data-gen"))
 sys.path.insert(0, HERE)
 
 from gfloat import RoundMode, encode_float, round_float  # noqa: E402
-from gfloat_ref import BF16, FP8_STANDARDS, FRM, external_result  # noqa: E402
+from gfloat_ref import BF16, FP8_STANDARDS, FRM, external_result, p3109_fp4  # noqa: E402
 from fma_ref import _negate as neg, add, exact, mul, project  # noqa: E402
 from flags_ref import flags, pack as pack_flags  # noqa: E402
 
@@ -63,6 +71,11 @@ CATS = ["fma8 unscaled, special c", "fma8 unscaled, nearby c", "fma8 edge scales
         "fma8 overflow threshold", "fma8 underflow threshold", "add8", "mul8",
         "wmul (BF16)", "wadd (BF16)", "wmacc (BF16)", "wadd.wv (BF16)"]
 NARROW, WIDE = range(10), range(10, 13)
+FP4_CATS = ["fp4 fma unscaled", "fp4 fma edge scales", "fp4 fma random scales",
+            "fp4 fma thresholds", "fp4 add", "fp4 mul",
+            "fp4 wmul (BF16)", "fp4 wadd (BF16)", "fp4 wmacc (BF16)", "fp4 wadd.wv (BF16)"]
+FP4_CAT0 = len(CATS)
+FP4_CODE = 6
 
 
 def block_decode(x, s):
@@ -296,22 +309,164 @@ def wv_job(args):
     return bytes(out)
 
 
+# --- Binary4p2sf (format code 6) ------------------------------------------------
+
+FI4 = p3109_fp4()
+V4 = [exact(FI4, c) for c in range(16)]
+TRIPLES = [(a, b, c) for a in range(16) for b in range(16) for c in range(16)]
+PAIRS = [(a, b) for a in range(16) for b in range(16)]
+LG4_MAX, LG4_MIN = 1, -2     # 3 = 1.5 x 2^1 and 0.25 = 2^-2
+
+
+def fp4_narrow_rec(cat, frm, op, kind, lanes):
+    """lanes: 8 tuples (a, b, c, [sa, sb, sc, sr]) of FP4 codes."""
+    wa = wb = wc = we = wx = chk = 0
+    scales = []
+    used = [0, 2, 3] if kind == "addsub" else [0, 1, 3] if kind == "mul" else [0, 1, 2, 3]
+    for k, (a, b, c, sc) in enumerate(lanes):
+        A, B, C = block_decode(V4[a], sc[0]), block_decode(V4[b], sc[1]), block_decode(V4[c], sc[2])
+        z = lane_z(kind, op, A, B, C, MODES[frm])
+        sr = sc[3]
+        e = project8(FI4, z, sr, MODES[frm])
+        if all(1 <= sc[u] <= 254 for u in used):
+            srv = z if z[0] != "num" else ("num", z[1], z[2] / Fraction(2) ** (sr - 128))
+            ops = [A, B] if kind == "mul" else [A, C] if kind == "addsub" else [A, B, C]
+            invalid = z[0] == "nan" and all(o[0] != "nan" for o in ops)
+            wx |= pack_flags(flags(srv, FI4, frm, invalid=invalid)) << 8 * k
+            chk |= 1 << k
+        wa |= a << 8 * k; wb |= b << 8 * k; wc |= c << 8 * k; we |= e << 8 * k
+        scales += sc
+    return REC.pack(cat, FP4_CODE, frm, op, kind == "addsub", kind == "mul", 0, 0, 0, 0, 0, chk, 0, 0, 0, 0,
+                    wa, wb, wc, we, wx, *scales)
+
+
+def fp4_scales(rng, j, a, b):
+    """Scales (sa, sb, sc, sr) for FP4 fma category j (0 unscaled, 1 edge, 2 random, 3 thresholds)."""
+    if j == 0:
+        return [128, 128, 128, 128]
+    if j == 1:
+        return [rng.choice(EDGE) for _ in range(4)]
+    sa, sb = rng.randint(100, 156), rng.randint(100, 156)
+    sc = clip(sa + sb - 128 + rng.randint(-3, 3))
+    if j == 2:
+        return [sa, sb, sc, clip(sa + sb - 128 + rng.randint(-3, 3))]
+    e = lg(mul(V4[a], V4[b], None))
+    target = LG4_MAX if rng.random() < 0.5 else LG4_MIN
+    sr = rand_scale(rng) if e is None else clip(e + sa + sb - 128 - target + 128 + rng.randint(-1, 1))
+    return [sa, sb, sc, sr]
+
+
+def fp4_fma_job(args):
+    j, frm = args
+    rng, out = random.Random(3 << 30 | j << 8 | frm), bytearray()
+    ops = range(4) if j == 0 else [None]
+    for op in ops:
+        for base in range(0, len(TRIPLES), 8):
+            o = rng.randrange(4) if op is None else op
+            lanes = [None] * 8
+            for i in range(8):
+                a, b, c = TRIPLES[base + i]
+                lanes[(i + base // 8) % 8] = (a, b, c, fp4_scales(rng, j, a, b))
+            out += fp4_narrow_rec(FP4_CAT0 + j, frm, o, "fma", lanes)
+    return bytes(out)
+
+
+def fp4_addmul_job(args):
+    kind, frm = args
+    rng, out = random.Random(4 << 30 | (kind == "mul") << 8 | frm), bytearray()
+    cat = FP4_CAT0 + (4 if kind == "addsub" else 5)
+    for rep in range(4):                 # four scale draws per pair
+        for base in range(0, len(PAIRS), 8):
+            op = 0 if kind == "mul" else rng.randrange(4)
+            lanes = [None] * 8
+            for i in range(8):
+                x, y = PAIRS[base + i]
+                if kind == "addsub":
+                    s = [rand_scale(rng), rng.randrange(256), rand_scale(rng), 0]
+                    s[3] = clip(max(s[0], s[2]) + rng.randint(-3, 3)) if rng.random() < 0.9 else rng.choice(EDGE)
+                    t = (x, rng.randrange(16), y, s)
+                else:
+                    s = [rand_scale(rng), rand_scale(rng), rng.randrange(256), 0]
+                    s[3] = clip(s[0] + s[1] - 128 + rng.randint(-3, 3)) if rng.random() < 0.9 else rng.choice(EDGE)
+                    t = (x, y, rng.randrange(16), s)
+                if rep == 0:             # one unscaled pass
+                    t = (t[0], t[1], t[2], [128, 128, 128, 128])
+                lanes[(i + base // 8 + rep) % 8] = t
+            out += fp4_narrow_rec(cat, frm, op, kind, lanes)
+    return bytes(out)
+
+
+def fp4_wide_rec(cat, frm, op, kind, lanes, rng):
+    """lanes: 4 tuples (a, b, c, sa, sb, sc); a (wv) and c (fma) are BF16 where the eew says so."""
+    a_eew, b_eew, c_eew = {"mul": (0, 0, 0), "addsub": (0, 1, 0), "fma": (0, 0, 1), "wv": (1, 1, 0)}[kind]
+    rnd = MODES[frm]
+    wa = wb = wc = we = 0
+    scales = [rng.randrange(256) for _ in range(32)]
+    for j, (a, b, c, sa, sb, sc) in enumerate(lanes):
+        A = exact(BF16, a) if a_eew else block_decode(V4[a], sa)
+        B = block_decode(V4[b], sb)
+        C = exact(BF16, c) if c_eew else block_decode(V4[c], sc)
+        z = lane_z("addsub" if kind == "wv" else kind, op, A, B, C, rnd)
+        e = external_result("p3109", project(BF16, z, rnd), 16)
+        wa |= a << 16 * j
+        wb |= (0x3F80 if b_eew else b) << 16 * j
+        wc |= c << 16 * j
+        we |= e << 16 * j
+        scales[8 * j:8 * j + 3] = [sa, sb, sc]
+    return REC.pack(cat, FP4_CODE, frm, op, kind in ("addsub", "wv"), kind == "mul", a_eew, b_eew, c_eew, 1, 1,
+                    0, 0, 0, 0, 0, wa, wb, wc, we, 0, *scales)
+
+
+def fp4_wide_job(args):
+    kind, frm = args
+    rng, out = random.Random(5 << 30 | ["mul", "addsub", "fma", "wv"].index(kind) << 8 | frm), bytearray()
+    cat = FP4_CAT0 + 6 + ["mul", "addsub", "fma", "wv"].index(kind)
+    for rep in range(4):
+        for base in range(0, len(PAIRS), 4):
+            op = 0 if kind == "mul" else rng.randrange(4)
+            lanes = [None] * 4
+            for i in range(4):
+                x, y = PAIRS[base + i]
+                sa, sb, sc = wide_scales(rng) if rep else (128, 128, 128)
+                if kind == "mul":
+                    t = (x, y, 0, sa, sb, 128)
+                elif kind == "addsub":
+                    t = (x, 0, y, sa, rng.randrange(256), sb)
+                elif kind == "fma":
+                    prod = mul(block_decode(V4[x], sa), block_decode(V4[y], sb), None)
+                    c = bf16_of(neg(prod)) if rng.random() < 0.05 else None
+                    t = (x, y, c if c is not None else rand_bf16(rng, lg(prod)), sa, sb, 128)
+                else:                    # wv: BF16 a, FP4 c
+                    C = block_decode(V4[y], sc)
+                    u = rng.random()
+                    a = (rng.choice((0x0000, 0x8000)) if u < 0.15 else
+                         bf16_of(neg(C)) if u < 0.35 and bf16_of(neg(C)) is not None else rand_bf16(rng, lg(C)))
+                    t = (a, 0, y, 128, rng.randrange(256), sc)
+                lanes[(i + base // 4 + rep) % 4] = t
+            out += fp4_wide_rec(cat, frm, op, kind, lanes, rng)
+    return bytes(out)
+
+
 def run_job(job):
     fn, args = job
     return fn(args)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[2] not in ("p3109", "p3109-finite"):
-        sys.exit("usage: fma_vectors.py <outdir> <p3109 | p3109-finite>")
-    outdir, std = sys.argv[1], sys.argv[2]
+    if len(sys.argv) not in (3, 4) or sys.argv[2] not in ("p3109", "p3109-finite") or sys.argv[3:] not in ([], ["fp4"]):
+        sys.exit("usage: fma_vectors.py <outdir> <p3109 | p3109-finite> [fp4]")
+    outdir, std, fp4 = sys.argv[1], sys.argv[2], sys.argv[3:] == ["fp4"]
     jobs = []
     for alt in (0, 1):
         jobs += [(narrow_job, (std, alt, j, g, g + 256)) for j in NARROW for g in range(0, 8192, 256)]
         jobs += [(wide_job, (std, alt, j, g, g + 512)) for j in WIDE for g in range(0, 16384, 512)]
         jobs += [(wv_job, (std, alt, part, 2000)) for part in range(N_WV // 2000)]
+    if fp4:
+        jobs += [(fp4_fma_job, (j, frm)) for j in range(4) for frm in range(5)]
+        jobs += [(fp4_addmul_job, (k, frm)) for k in ("addsub", "mul") for frm in range(5)]
+        jobs += [(fp4_wide_job, (k, frm)) for k in ("mul", "addsub", "fma", "wv") for frm in range(5)]
     with Pool(int(os.environ.get("JOBS", "8"))) as pool, open(os.path.join(outdir, "fma.bin"), "wb") as f:
         for chunk in pool.imap(run_job, jobs):
             f.write(chunk)
     with open(os.path.join(outdir, "fma.cats"), "w") as f:
-        f.write("\n".join(CATS) + "\n")
+        f.write("\n".join(CATS + (FP4_CATS if fp4 else [])) + "\n")

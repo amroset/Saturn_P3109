@@ -63,7 +63,10 @@ int main(int argc, char** argv) {
             t->io_valid = 1;
             t->io_frm = r.frm; t->io_op = r.op; t->io_addsub = r.addsub; t->io_mul = r.mul;
             t->io_a_eew = r.a_eew; t->io_b_eew = r.b_eew; t->io_c_eew = r.c_eew;
-            t->io_out_eew = r.out_eew; t->io_widen = r.widen; t->io_altfmt = r.alt;
+            t->io_out_eew = r.out_eew; t->io_widen = r.widen; t->io_altfmt = r.alt & 1;
+#ifdef FMT_HI
+            t->io_fmt_hi = r.alt >> 1;   // alt is the format code (6: Binary4p2sf)
+#endif
             t->io_a = r.a; t->io_b = r.b; t->io_c = r.c;
             for (int l = 0; l < 8; l++)
                 for (int s = 0; s < 4; s++) *sc[l][s] = r.scale[l][s];

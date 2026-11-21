@@ -44,10 +44,15 @@ if ! "$GFLOAT_PYTHON" -c 'import gfloat' 2>/dev/null; then
 	exit 1
 fi
 
-"$GFLOAT_PYTHON" "$here/fma_vectors.py" "$work" "$std"
+# Configs with P3109Formats.fp4 add Binary4p2sf (format code 6) and the code's upper bits
+case "$config" in
+	*FP4*) fp4=fp4; fmthi=-DFMT_HI ;;
+	*) fp4=; fmthi= ;;
+esac
+"$GFLOAT_PYTHON" "$here/fma_vectors.py" "$work" "$std" $fp4
 "$GFLOAT_PYTHON" "$here/collect_hier.py" "$gen" SegmentedFMAPipe > "$work/fma.f"
 verilator --cc -f "$work/fma.f" --exe "$here/tb_fma_lane.cpp" --top-module SegmentedFMAPipe \
 	--Mdir "$work/obj_fma" -o sim -Wno-fatal -Wno-lint -Wno-style \
-	-CFLAGS "-O2" --build -j "${JOBS:-8}" \
+	-CFLAGS "-O2 $fmthi" --build -j "${JOBS:-8}" \
 	> "$work/build_fma.log" 2>&1 || { echo "error: see $work/build_fma.log" >&2; exit 1; }
 "$work/obj_fma/sim" "$work/fma.bin" "$work/fma.cats"

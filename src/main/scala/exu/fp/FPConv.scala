@@ -84,7 +84,7 @@ class FPConvBlock(mxConversion: Boolean, p3109: Option[P3109Formats])(implicit p
   val rawBF16 = VecInit(in16.map(u => f2raw(MXFType.BF16, u)))
   val raw8 = VecInit(in8.map(u => f2raw(core8, p3109 match {
     case Some(f) if f.genericReader => p3109ToCore(u, in_fmt, f)
-    case Some(f) => p3109ToE5M3(u, io.in_altfmt, f)
+    case Some(f) => p3109ToE5M3(u, io.in_altfmt, f, P3109Formats.isFP4(in_fmt, f))
     case None    => fp8ToE5M3(u, io.in_altfmt)
   })))
 

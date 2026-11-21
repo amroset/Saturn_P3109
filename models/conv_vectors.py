@@ -1,6 +1,9 @@
 """Test vectors for the P3109 conversions in FPConvBlock, codes and flags.
 
-    conv_vectors.py <outdir> <finite: 0|1> <block: 0|1>
+    conv_vectors.py <outdir> <finite: 0|1> <block: 0|1> [fp4]
+
+"fp4" adds Binary4p2sf at format code 6 (P3109Formats.fp4), one code in the
+low nibble of each element byte, with the same cases as the 8-bit formats.
 
 Writes conv.bin for tb_conv.cpp: one 48-byte record per cycle, four lanes each,
 
@@ -34,7 +37,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "benchmarks", "common-data-gen"))
 sys.path.insert(0, HERE)
 
 from gfloat import decode_float  # noqa: E402
-from gfloat_ref import BF16, FRM, p3109_format  # noqa: E402
+from gfloat_ref import BF16, FRM, canonical_nan, p3109_format, p3109_fp4  # noqa: E402
 from block_ref import SCALE_BIAS, SCALE_NAN, convert_from_block, convert_to_block  # noqa: E402
 from flags_ref import flags, pack, bf16_exact, bf16_is_snan, RODD  # noqa: E402
 from rto_ref import project_odd  # noqa: E402
@@ -45,7 +48,12 @@ JUNK = 0x5A
 ONE = SCALE_BIAS                                   # 2^0
 SPREAD = (0, 1, 64, 127, 128, 129, 200, 254)       # 255 (NaN) is in the exhaustive sweep
 RND = {frm: rnd for frm, rnd in FRM.values()}
-FMTS = ((0, 4), (1, 3))                            # (altfmt, precision)
+FMTS = [(0, 4), (1, 3)]                            # (format code, precision); fp4 adds (6, None)
+
+
+def fmt_fi(P, finite):
+    """The element format: binary8pP, or Binary4p2sf for P = None."""
+    return p3109_fp4() if P is None else p3109_format(P, finite)
 
 
 def scale_word(scales):
@@ -61,8 +69,8 @@ def scaled(x, s, divide):
 
 
 def widen(code, s, P, finite, frm):
-    fi = p3109_format(P, finite)
-    out = convert_from_block(code, s, P, finite, RND[frm])
+    fi = fmt_fi(P, finite)
+    out = convert_from_block(code, s, P, finite, RND[frm], fi=fi)
     v = decode_float(fi, code).fval
     if s in (0, SCALE_NAN) or v != v:
         return out, 0
@@ -71,18 +79,18 @@ def widen(code, s, P, finite, frm):
 
 
 def narrow(bits, s, P, finite, frm, sat):
-    fi = p3109_format(P, finite)
+    fi = fmt_fi(P, finite)
     snan = bf16_is_snan(bits)
     x = bf16_exact(bits)
     if frm == RODD:
         if s == SCALE_NAN or x[0] == "nan":
-            out = 0x80
+            out = canonical_nan(fi)
         elif s == 0:
             out = 0
         else:
             out = project_odd(scaled(x, s, True), fi, sat)
     else:
-        out = convert_to_block(bits, s, P, finite, RND[frm], sat)
+        out = convert_to_block(bits, s, P, finite, RND[frm], sat, fi=fi)
     if s in (0, SCALE_NAN) or x[0] == "nan":
         return out, pack((snan, False, False, False, False))
     return out, pack(flags(scaled(x, s, True), fi, frm, invalid=snan))
@@ -102,7 +110,7 @@ def record(fmt, frm, kind, sat, ins, scales, outs, excs):
 
 def widen_job(args):
     fmt, P, finite, frm, scales = args
-    cases = [(c, s) for c in range(256) for s in scales]
+    cases = [(c, s) for c in range(1 << fmt_fi(P, finite).k) for s in scales]
     out = bytearray()
     for i in range(0, len(cases), 4):
         lanes = cases[i:i + 4]
@@ -141,9 +149,11 @@ def jobs(finite, block):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        sys.exit("usage: conv_vectors.py <outdir> <finite: 0|1> <block: 0|1>")
+    if len(sys.argv) not in (4, 5) or sys.argv[4:] not in ([], ["fp4"]):
+        sys.exit("usage: conv_vectors.py <outdir> <finite: 0|1> <block: 0|1> [fp4]")
     outdir, finite, block = sys.argv[1], sys.argv[2] == "1", sys.argv[3] == "1"
+    if sys.argv[4:] == ["fp4"]:
+        FMTS.append((6, None))
     os.makedirs(outdir, exist_ok=True)
     path = os.path.join(outdir, "conv.bin")
     n = 0

@@ -53,6 +53,9 @@ int main(int argc, char** argv) {
         t->io_f2i = 0;
         t->io_truncating = 0;
         t->io_in_altfmt = r.fmt & 1;
+#ifdef FMT_HI
+        t->io_in_fmt_hi = r.fmt >> 1;   // fmt is the format code (6: Binary4p2sf)
+#endif
     };
 
     Rec idle{};
@@ -61,13 +64,15 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 5; i++) tick();
     t->reset = 0;
 
-    size_t bad = 0, n[2] = {0, 0}, bad_fmt[2] = {0, 0};
+    static const char* names[8] = {"binary8p4", "binary8p3", "code 2", "code 3", "code 4", "code 5",
+                                   "Binary4p2sf", "code 7"};
+    size_t bad = 0, n[8] = {0}, bad_fmt[8] = {0};
     for (size_t k = 0; k < recs.size() + LATENCY; k++) {
         drive(k < recs.size() ? recs[k] : idle, k < recs.size());
         tick();
         if (k < LATENCY) continue;
         const Rec& q = recs[k - LATENCY];
-        int fmt = q.fmt & 1;
+        int fmt = q.fmt & 7;
         uint64_t got = t->io_out & q.mask, want = q.expect & q.mask;
         uint64_t got_exc = 0;
         for (int l = 0; l < 4; l++) got_exc |= (uint64_t)(*exc[2 * l] & 0x1F) << (8 * l);
@@ -76,7 +81,7 @@ int main(int argc, char** argv) {
             if (bad++ < 8)
                 printf("   MISMATCH record %zu %s %s frm=%d%s%s scale=%016llx in=%016llx: "
                        "got %016llx exc %08llx, want %016llx exc %08llx\n",
-                       k - LATENCY, fmt ? "binary8p3" : "binary8p4", (q.flags & 1) ? "widen" : "narrow",
+                       k - LATENCY, names[fmt], (q.flags & 1) ? "widen" : "narrow",
                        q.frm, (q.flags & 4) ? " rod" : "", (q.flags & 8) ? " sat" : "",
                        (unsigned long long)q.scale, (unsigned long long)q.in,
                        (unsigned long long)got, (unsigned long long)got_exc,
@@ -84,8 +89,8 @@ int main(int argc, char** argv) {
             bad_fmt[fmt]++;
         }
     }
-    for (int c = 0; c < 2; c++)
-        printf("   %s: %zu/%zu cycles agree\n", c ? "binary8p3" : "binary8p4", n[c] - bad_fmt[c], n[c]);
+    for (int c = 0; c < 8; c++)
+        if (n[c]) printf("   %s: %zu/%zu cycles agree\n", names[c], n[c] - bad_fmt[c], n[c]);
     printf("   TOTAL MISMATCHES: %zu  (of %zu cycles)\n", bad, recs.size());
     return bad ? 1 : 0;
 }

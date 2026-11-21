@@ -5,10 +5,10 @@ import chisel3.util._
 import freechips.rocketchip.tile._
 import saturn.common._
 
-// Rounds a hardfloat RawFloat to an 8-bit IEEE P3109 code, in the format the
-// format code selects: binary8p4 (0) or binary8p3 (1), then a precision
-// sweep's extra formats (P3109Sweep.scala). Section numbers refer to IEEE
-// P3109 Interim Report v4.0.3.
+// Rounds a hardfloat RawFloat to an IEEE P3109 code, in the format the format
+// code selects: binary8p4 (0) or binary8p3 (1), a precision sweep's extra
+// formats (P3109Sweep.scala), and Binary4p2sf (6), whose code is the low
+// nibble. Section numbers refer to IEEE P3109 Interim Report v4.0.3.
 //
 // The rounding core (adjustedSig .. common_inexact) is hardfloat's
 // RoundAnyRawFNToRecFN with outSigWidth = the widest format's precision (4 for
@@ -30,18 +30,19 @@ object P3109Rounder {
 }
 
 // Per-format constants, with exponents biased by P3109Rounder.expBias
-case class P3109FormatInfo(precision: Int, finite: Boolean, outSigWidth: Int) {
+case class P3109FormatInfo(k: Int, precision: Int, finite: Boolean, outSigWidth: Int) {
   import P3109Rounder.{expBias, maskBottom}
 
   val fracBits   = precision - 1
-  val expBits    = 8 - precision
-  val bias       = 1 << (7 - precision)
+  val expBits    = k - precision
+  val bias       = 1 << (k - 1 - precision)
   val minNorm    = expBias + 1 - bias
   val minNonzero = minNorm - fracBits
   val emax       = expBias + ((1 << expBits) - 1 - bias)
-  val maxFrac    = (1 << fracBits) - (if (finite) 1 else 2) // 0x7F is Inf in the extended domain
+  val maxFrac    = (1 << fracBits) - (if (finite) 1 else 2) // 0 1..1 is Inf in the extended domain
   val delta      = maskBottom(outSigWidth) - minNorm
   val precShift  = outSigWidth - precision
+  val signPos    = k - 1
 
   require(precision >= 2 && precision <= outSigWidth)
 }
@@ -68,15 +69,15 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
     val exceptionFlags = Output(UInt(5.W))
   })
 
-  val infos = formats.byCode.map { case (p, finite) => P3109FormatInfo(p, finite, outSigWidth) }
+  val infos = formats.formats.map(f => P3109FormatInfo(f.k, f.p, f.finite, outSigWidth))
   // One width per constant, so the choice is between like wires
   def pickU(f: P3109FormatInfo => Int) = {
     val w = infos.map(i => log2Ceil(f(i) + 1)).max max 1
-    P3109Sweep.pick(io.fmt, infos.map(i => f(i).U(w.W)))
+    P3109Sweep.pick(io.fmt, formats, infos.map(i => f(i).U(w.W)))
   }
   def pickS(f: P3109FormatInfo => Int) = {
     val w = infos.map(i => f(i).S.getWidth).max
-    P3109Sweep.pick(io.fmt, infos.map(i => f(i).S(w.W)))
+    P3109Sweep.pick(io.fmt, formats, infos.map(i => f(i).S(w.W)))
   }
 
   val fracBits   = pickU(_.fracBits)
@@ -86,7 +87,9 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   val minNonzero = pickS(_.minNonzero)
   val emax       = pickS(_.emax)
   val maxFrac    = pickU(_.maxFrac)
-  val finite     = P3109Sweep.pick(io.fmt, infos.map(_.finite.B))
+  val finite     = P3109Sweep.pick(io.fmt, formats, infos.map(_.finite.B))
+  // The code's sign bit, 1 << (K - 1)
+  val signCode   = P3109Sweep.pick(io.fmt, formats, infos.map(i => (1 << i.signPos).U(8.W)))
 
   val roundingMode_near_even   = io.roundingMode === hardfloat.consts.round_near_even
   val roundingMode_near_maxMag = io.roundingMode === hardfloat.consts.round_near_maxMag
@@ -177,10 +180,12 @@ class P3109Rounder(inExpWidth: Int, inSigWidth: Int, formats: P3109Formats,
   // Read only where commonCase && common_totalUnderflow holds (the output Mux)
   val pegMinNonzeroMagOut = roundMagUp || roundingMode_odd
 
-  val signBit        = io.in.sign ## 0.U(7.W)
-  val nanCode        = "h80".U(8.W)
-  val maxFiniteCode  = signBit | "h7E".U | finite // 0x7F is Inf in the extended domain
-  val infCode        = Mux(finite, nanCode, signBit | "h7F".U)
+  // A K-bit code in the low bits: NaN is 1 0..0, Inf 0 1..1 (extended domain)
+  val signBit        = Mux(io.in.sign, signCode, 0.U)
+  val nanCode        = signCode
+  val maxMagCode     = signCode - 1.U
+  val maxFiniteCode  = signBit | (maxMagCode - 1.U) | finite
+  val infCode        = Mux(finite, nanCode, signBit | maxMagCode)
 
   // The mask already rounded a subnormal onto its grid, so this shift is exact.
   // Not total underflow, so the shift is at most fracBits and the field is nonzero.

@@ -33,6 +33,8 @@ case "$config" in
 	P3109FiniteV256D128ShuttleConfig)      finite=1; block=0 ;;
 	P3109BlockV256D128ShuttleConfig)       finite=0; block=1 ;;
 	P3109BlockFiniteV256D128ShuttleConfig) finite=1; block=1 ;;
+	P3109BlockDotFP4V256D128ShuttleConfig) finite=0; block=1; fp4=fp4 ;;
+	P3109BlockDotV256D128ShuttleConfig)    finite=0; block=1 ;;
 	*) usage ;;
 esac
 if [ ! -d "$gen" ]; then
@@ -45,10 +47,10 @@ if ! "$GFLOAT_PYTHON" -c 'import gfloat' 2>/dev/null; then
 	exit 1
 fi
 
-"$GFLOAT_PYTHON" "$here/conv_vectors.py" "$work" "$finite" "$block"
+"$GFLOAT_PYTHON" "$here/conv_vectors.py" "$work" "$finite" "$block" ${fp4:-}
 "$GFLOAT_PYTHON" "$here/collect_hier.py" "$gen" FPConvBlock > "$work/conv.f"
 verilator --cc -f "$work/conv.f" --exe "$here/tb_conv.cpp" --top-module FPConvBlock \
 	--Mdir "$work/obj_conv" -o sim -Wno-fatal -Wno-lint -Wno-style \
-	-CFLAGS "-O2 $([ "$block" = 1 ] && echo -DHAS_SCALE)" --build -j "$(nproc)" \
+	-CFLAGS "-O2 $([ "$block" = 1 ] && echo -DHAS_SCALE) $([ -n "${fp4:-}" ] && echo -DFMT_HI)" --build -j "$(nproc)" \
 	> "$work/build_conv.log" 2>&1 || { echo "error: see $work/build_conv.log" >&2; exit 1; }
 "$work/obj_conv/sim" "$work/conv.bin"

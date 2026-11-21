@@ -206,6 +206,26 @@ class P3109BlockFiniteV256D128ShuttleConfig extends Config(
 // generic reader, the baseline. P3109Sweep346 is the control for
 // P3109Sweep3456: if cost follows the widest precision rather than how many
 // formats there are, the two match.
+// P3109BlockDot with Binary4p2sf at format code 6 in FPConv and the FMA
+// (docs/fp4-vector.md); unit checks and synthesis, no instruction sets code 6 yet
+class P3109BlockDotFP4V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(
+    p3109 = VectorParams.p3109BlockDotParams.p3109.map(_.copy(fp4 = true)))) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// The pair and Binary4p2sf (code 6) on the generic reader, for the FP4 rounder
+// and reader checks (models/run_sweep_check.sh)
+class P3109SweepFP4V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109Params.copy(
+    p3109 = Some(saturn.common.P3109Formats(genericReader = true, fp4 = true)))) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class P3109Sweep34V256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109SweepParams()) ++
   new chipyard.config.WithSystemBusWidth(128) ++

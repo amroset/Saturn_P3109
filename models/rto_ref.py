@@ -41,7 +41,7 @@ def project_odd(x, fi, sat):
     if x[0] == "nan":
         return canonical_nan(fi)
     P = fi.precision
-    B = 1 << (8 - P - 1)                           # 3.1: signed, K = 8
+    B = 1 << (fi.k - P - 1)                        # 3.1: signed
     Mhi = Fraction(fi.max)
     if x[0] == "inf":
         R = math.inf if x[1] == 0 else -math.inf   # 4.7.4 leaves infinities alone

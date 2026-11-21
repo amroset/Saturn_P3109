@@ -220,7 +220,7 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
   val bf16c = io.c.asTypeOf(Vec(4, UInt(16.W))).map(f => MXFType.BF16.recode(f))
   def read8(u: UInt) = p3109 match {
     case Some(f) if f.genericReader => p3109ToCore(u, in_fmt, f)
-    case Some(f) => p3109ToE5M3(u, io.altfmt, f)
+    case Some(f) => p3109ToE5M3(u, io.altfmt, f, P3109Formats.isFP4(in_fmt, f))
     case None    => fp8ToE5M3(u, io.altfmt)
   }
   val f8a = io.a.asTypeOf(Vec(8, UInt(8.W))).map(f => core8.recode(read8(f)))
@@ -396,7 +396,11 @@ class SegmentedFMAPipe(depth: Int, buildFP64: Boolean, mxFPFMA: Boolean, p3109: 
         val res_bits = io.scale match {
           case Some(sv) =>
             val sr = Pipe(io.valid, sv(index)(3), depth-1).bits
-            Mux(sr === 255.U, "h80".U(8.W), Mux(sr === 0.U && out_bits =/= "h80".U, 0.U(8.W), out_bits))
+            val nan = if (p3109.exists(_.fp4)) Mux(P3109Formats.isFP4(out_fmt_pipe, p3109.get), "h08".U(8.W), "h80".U(8.W))
+                      else "h80".U(8.W)
+            // NaN from the unrounded result: in the finite domain an overflow also rounds to NaN
+            val z_nan = fma.io.out.isNaN || fma.io.invalidExc
+            Mux(sr === 255.U, nan, Mux(sr === 0.U && !z_nan, 0.U(8.W), out_bits))
           case None => out_bits
         }
         when (select_out) {
@@ -508,8 +512,10 @@ class FPFMAPipe(depth: Int, elementwiseFP64: Boolean, segmentedFPFMA: Boolean, m
   val nTandemFMA = dLenB / 8
 
   val eidx = Mux(io.pipe(0).bits.acc, 0.U, io.pipe(0).bits.eidx)
-  // 1.0 is 0x40 in both P3109 formats
-  val one8_bits = if (p3109.isDefined) "h4040404040404040".U
+  // 1.0 is 0x40 in both P3109 formats, 0x4 in Binary4p2sf
+  val one8_bits = if (p3109.exists(_.fp4)) Mux(P3109Formats.isFP4(io.pipe(0).bits.p3109_fmt_hi.get ## altfmt, p3109.get),
+                                               "h0404040404040404".U, "h4040404040404040".U)
+                  else if (p3109.isDefined) "h4040404040404040".U
                   else Mux(altfmt, "h3C3C3C3C3C3C3C3C".U, "h3838383838383838".U)
   val one_bits = Mux1H(Seq(vd_eew === 3.U, vd_eew === 2.U, vd_eew === 1.U, vd_eew === 0.U),
                        Seq("h3FF0000000000000".U, "h3F8000003F800000".U, Mux(altfmt, "h3F803F803F803F80".U, "h3C003C003C003C00".U), one8_bits))

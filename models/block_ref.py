@@ -35,9 +35,10 @@ def scale_value(s):
 
 
 def convert_from_block(code, scale, precision, finite,
-                       rnd=RoundMode.TiesToEven):
-    """ConvertFromBlock: an 8-bit element and its scale, widened to BF16."""
-    src = p3109_format(precision, finite)
+                       rnd=RoundMode.TiesToEven, fi=None):
+    """ConvertFromBlock: an 8-bit element and its scale, widened to BF16.
+    fi, if given, is the element format instead (e.g. Binary4p2sf)."""
+    src = fi or p3109_format(precision, finite)
     X = decode_float(src, code).fval
     S = scale_value(scale)
 
@@ -47,20 +48,22 @@ def convert_from_block(code, scale, precision, finite,
     if S == 0.0:
         if math.isinf(X):
             return canonical_nan(BF16)       # Multiply(Inf, 0) -> NaN
-        # Zero absorbs, but keeps the element's sign: BF16 has a signed zero.
-        return encode_float(BF16, math.copysign(0.0, X))
+        # Zero absorbs. P3109 has a single zero, which it writes in an
+        # external format such as BF16 as +0 (4.8.2).
+        return encode_float(BF16, 0.0)
 
     Z = X * S
     r = round_float(BF16, Z, rnd=rnd)
     if math.isnan(r):
         return canonical_nan(BF16)
-    return encode_float(BF16, r)
+    return encode_float(BF16, 0.0 if r == 0 else r)
 
 
 def convert_to_block(bits, scale, precision, finite,
-                     rnd=RoundMode.TiesToEven, sat=False):
-    """ConvertToBlock: a BF16 value and a scale, narrowed to an 8-bit element."""
-    dst = p3109_format(precision, finite)
+                     rnd=RoundMode.TiesToEven, sat=False, fi=None):
+    """ConvertToBlock: a BF16 value and a scale, narrowed to an 8-bit element.
+    fi, if given, is the element format instead (e.g. Binary4p2sf)."""
+    dst = fi or p3109_format(precision, finite)
     X = decode_float(BF16, bits).fval
     S = scale_value(scale)
 
