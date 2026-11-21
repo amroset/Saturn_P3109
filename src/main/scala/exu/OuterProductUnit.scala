@@ -87,45 +87,43 @@ class OuterProductCell(implicit p: Parameters) extends CoreModule()(p) with HasO
       case Some(f) => p3109ToE5M3(u, io.altfmt.get, f)
       case None    => fp8ToE5M3(u, io.altfmt.get)
     }
-    // A scaled operand can leave FP32's range even when the result does not,
-    // so a, b and c are widened to a recoded format with a 10-bit exponent,
-    // the scales are added to a's and b's exponents (exact there), and the
-    // exact a*b + c is rounded once, to FP32. With both scales 2^0 this is the
-    // unscaled OPFMACC: the same exact value, rounded once.
+    // c + sA*sB*a*b, rounded once to FP32. A scaled operand can leave FP32's
+    // range even when the result does not, so the cell computes in a recoded
+    // format with a 10-bit exponent. A product of two 8-bit elements has at
+    // most 8 significant bits, so the scaled product is exact in that format,
+    // and one addition and one rounding finish the multiply-accumulate. With
+    // both scales 2^0 this is the unscaled OPFMACC.
     val wide = FType(FType.S.exp + 2, FType.S.sig)
-    // div16 also subtracts 4 from the exponent (the FP4 path's /16); nan
-    // forces a NaN result (an FP4 NaN, which the integer path cannot carry)
-    def scaleRec(x: UInt, s: UInt, t: FType, div16: Bool = false.B, nan: Bool = false.B): UInt = {
-      val sign  = x(t.exp + t.sig)
-      val exp   = x(t.exp + t.sig - 1, t.sig - 1)
-      val fract = x(t.sig - 2, 0)
-      val isZero    = exp(t.exp, t.exp - 2) === 0.U
-      val isSpecial = exp(t.exp, t.exp - 1).andR // Inf or NaN
-      val qnan   = Cat(0.U(1.W), 7.U(3.W), 0.U((t.exp - 2).W), 1.U(1.W), 0.U((t.sig - 2).W))
-      val scaled = Cat(sign, (exp.zext + (s.zext - Mux(div16, 132.S, 128.S)))(t.exp, 0), fract)
-      Mux(nan || s === 255.U || (s === 0.U && isSpecial), qnan, // NaN scale; 0 * Inf, 0 * NaN
-        Mux(s === 0.U, Cat(sign, 0.U((t.exp + t.sig).W)),       // zero scale
-          Mux(isZero || isSpecial, x, scaled)))
-    }
-    val f8a = MXFType.E5M3.recode(read8(io.in_l.asUInt))
-    val f8b = MXFType.E5M3.recode(read8(io.in_t.asUInt))
-    val f8aw = widen(f8a, MXFType.E5M3, wide, f8macc)
-    val f8bw = widen(f8b, MXFType.E5M3, wide, f8macc)
     val latency = 2
-    val fma = Module(new MulAddRecFNPipeUnrounded(latency, wide.exp, wide.sig))
-    fma.io.validin := f8macc
-    fma.io.op := 0.U // FMA
-    fma.io.roundingMode := hardfloat.consts.round_near_even
-    fma.io.detectTininess := hardfloat.consts.tininess_afterRounding
+    val scaleExp = io.scale_l.zext +& io.scale_t.zext - 256.S // log2(sA*sB)
+
+    // An element times its scale, as P3109's omegaBlockDecode: a NaN scale,
+    // or a zero scale times Inf or NaN, gives NaN; a zero scale otherwise zero
+    class ScaledElem(code: UInt, s: UInt) {
+      val raw = hardfloat.rawFloatFromFN(MXFType.E5M3.exp, MXFType.E5M3.sig, read8(code))
+      val nan = raw.isNaN || s === 255.U || (s === 0.U && raw.isInf)
+      val inf = raw.isInf && !nan
+      val zero = !nan && !inf && (raw.isZero || s === 0.U)
+    }
+    val a = new ScaledElem(io.in_l.asUInt, io.scale_l)
+    val b = new ScaledElem(io.in_t.asUInt, io.scale_t)
+    val sig8 = a.raw.sig(3, 0) * b.raw.sig(3, 0) // 1.xxx * 1.yyy, in [1, 4)
+    val carry = sig8(7)
+    val prod8 = Wire(new hardfloat.RawFloat(wide.exp, wide.sig))
+    prod8.isNaN := a.nan || b.nan || (a.inf && b.zero) || (a.zero && b.inf)
+    prod8.isInf := (a.inf || b.inf) && !prod8.isNaN
+    prod8.isZero := (a.zero || b.zero) && !prod8.isNaN
+    prod8.sign := a.raw.sign ^ b.raw.sign
+    // raw exponents are biased by 2^expWidth: E5M3's by 32, wide's by 1024
+    prod8.sExp := (a.raw.sExp +& b.raw.sExp +& scaleExp +& carry.zext +& (1024 - 64).S)(wide.exp + 1, 0).asSInt
+    prod8.sig := Cat(0.U(1.W), Mux(carry, sig8, sig8(6, 0) ## 0.U(1.W)), 0.U((wide.sig - 8).W))
+
     // FP4 (opuFP4, element-format code 6): each byte holds two P3109
     // Binary4p2sf values, step k in bits 3:0 and step k+1 in bits 7:4. Times 4,
     // every value is an integer of magnitude at most 12 (code 8 is NaN), so
     // a0*b0 + a1*b1 is exactly an integer of at most 288, 16 times the dot
-    // product. It takes a's place before the scaling (exponent -4 for the /16)
-    // and b = 1 takes b's, so the cell computes c + sA*sB*(a0*b0 + a1*b1),
-    // rounded once, through the same scaleRec, FMA and rounding as FP8.
-    val fp4 = io.fp4.getOrElse(false.B)
-    val (ua, ub, nan4) = if (vParams.opuFP4) {
+    // product, and takes the 8-bit product's place.
+    val prod = if (vParams.opuFP4) {
       def int4(c: UInt): SInt = {
         val mag = VecInit(Seq(0, 1, 2, 3, 4, 6, 8, 12).map(_.U(4.W)))(c(2, 0))
         Mux(c(3), -mag.zext, mag.zext)
@@ -139,29 +137,49 @@ class OuterProductCell(implicit p: Parameters) extends CoreModule()(p) with HasO
       i2f.io.in := dot16.asUInt
       i2f.io.roundingMode := hardfloat.consts.round_near_even // exact: at most 9 bits
       i2f.io.detectTininess := hardfloat.consts.tininess_afterRounding
-      val one = wide.recode((((BigInt(1) << (wide.exp - 1)) - 1) << (wide.sig - 1)).U(wide.ieeeWidth.W))
-      (Mux(fp4, i2f.io.out, f8aw), Mux(fp4, one, f8bw), fp4 && nan)
-    } else (f8aw, f8bw, false.B)
-    fma.io.a := scaleRec(ua, io.scale_l, wide, fp4, nan4)
-    fma.io.b := scaleRec(ub, io.scale_t, wide)
-    fma.io.c := widen(FType.S.recode(regs(io.mrf_idx)), FType.S, wide, f8macc)
+      val dot = hardfloat.rawFloatFromRecFN(wide.exp, wide.sig, i2f.io.out)
+      val prod4 = WireInit(dot)
+      prod4.isNaN := nan || io.scale_l === 255.U || io.scale_t === 255.U
+      prod4.isZero := (dot.isZero || io.scale_l === 0.U || io.scale_t === 0.U) && !prod4.isNaN
+      prod4.sExp := (dot.sExp +& scaleExp - 4.S)(wide.exp + 1, 0).asSInt
+      Mux(io.fp4.get, prod4, prod8)
+    } else prod8
+
+    // AddRawFN also reads a zero's exponent and significand, so give a zero
+    // product those of a recoded zero
+    val prodIn = WireInit(prod)
+    when (prod.isZero) {
+      prodIn.sExp := 0.S
+      prodIn.sig := 0.U
+    }
+    val c = widen(FType.S.recode(regs(io.mrf_idx)), FType.S, wide, f8macc)
+    val valid1 = RegNext(f8macc, false.B)
+    val prod1 = RegEnable(prodIn, f8macc)
+    val c1 = RegEnable(c, f8macc)
+
+    val add = Module(new hardfloat.AddRawFN(wide.exp, wide.sig))
+    add.io.subOp := false.B
+    add.io.a := hardfloat.rawFloatFromRecFN(wide.exp, wide.sig, c1)
+    add.io.b := prod1
+    add.io.roundingMode := hardfloat.consts.round_near_even
+    val valid2 = RegNext(valid1, false.B)
+    val sum2 = RegEnable(add.io.rawOut, valid1)
+    val invalid2 = RegEnable(add.io.invalidExc, valid1)
+
     val round = Module(new hardfloat.RoundAnyRawFNToRecFN(wide.exp, wide.sig + 2, FType.S.exp, FType.S.sig, 0))
-    round.io.invalidExc := fma.io.invalidExc
+    round.io.invalidExc := invalid2
     round.io.infiniteExc := false.B
-    round.io.in := fma.io.out
+    round.io.in := sum2
     round.io.roundingMode := hardfloat.consts.round_near_even
     round.io.detectTininess := hardfloat.consts.tininess_afterRounding
-    // Pipeline control signals to match FMA latency
     mrf_idx_pipe := Pipe(f8macc, io.mrf_idx, latency).bits
-    val _fp8_pipe = Pipe(f8macc, io.fp8.get, latency).bits
-    val _macc_pipe = Pipe(f8macc, io.macc, latency).bits
 
     // P3109 has one zero, and encodes it in binary32 as +0 (Interim Report
     // v4.0.3, 4.8.2), where IEEE 754 can give -0; an OCP build keeps IEEE's.
     val sum32 = FType.S.ieee(round.io.out)
     val sum32_out = if (vParams.p3109.isDefined) Mux(sum32(30, 0) === 0.U, 0.U, sum32) else sum32
-    sum_fp8 := Mux(fma.io.validout, sum32_out, 0.U)
-    fp8_macc_complete := fma.io.validout
+    sum_fp8 := Mux(valid2, sum32_out, 0.U)
+    fp8_macc_complete := valid2
   } else {
     mrf_idx_pipe := 0.U
     fp8_macc_complete := false.B

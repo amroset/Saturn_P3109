@@ -142,14 +142,15 @@ None of this is architectural:
   - Missing pieces are read through the two data ports, in fill cycles before the data reads. The sequencer sends the read data to an OPU entry, and later tells the OPU which entries to apply.
   - Every register-file write is reported (`RegisterFile.write_snoop`) and drops the written register's cached copy.
 - **Cell.** Each cell (`OuterProductUnit.scala`) works as follows:
-  1. It widens `a`, `b` and the accumulator to a recoded format with a 10-bit exponent, where a scaled operand cannot overflow.
-  2. It adds the scales to the exponents of `a` and `b`.
-  3. It rounds the unrounded `a × b + c` once, to binary32.
-  - With `opuFP4`, the cell also forms `a0·b0 + a1·b1` exactly as an integer (each Binary4p2sf value times 4 is an integer of magnitude at most 12), converts it to the wide format, and uses it as `a` with `b` = 1, before step 2. The scaling, the FMA and the rounding are shared with the 8-bit path.
+  1. It forms the product `sA·sB·a·b` exactly, in a raw format with a 24-bit significand and a 10-bit exponent, where a scaled product cannot overflow. The two 4-bit significands give an 8-bit product, and the exponent is the sum of the elements' and the scales' exponents. Zero and NaN scales follow BlockDecode.
+  2. It adds the product to the accumulator, widened to the same format, with one addition (HardFloat's `AddRawFN`).
+  3. It rounds the sum once, to binary32.
+  - The cell needs no multiply-add: a product of two 8-bit elements has at most 8 significant bits, so it is exact in the wide format. The cell keeps the two-cycle latency of the multiply-add it replaces.
+  - With `opuFP4`, the cell also forms `a0·b0 + a1·b1` exactly as an integer (each Binary4p2sf value times 4 is an integer of magnitude at most 12), converts it to the wide format, and uses it in place of the 8-bit product in step 1. The addition and the rounding are shared with the 8-bit path.
 - **Cost, measured on the 2×2 kernel.**
   - `OPFMACC.S` itself adds no cycles over `OPFMACC`.
   - Reloading the scales costs +1.0% to +2.9% per 32-step block.
-  - +3.9% OPU area in Sky130 synthesis.
+  - +3.9% OPU area in Sky130 synthesis, measured with the cell's earlier multiply-add.
   - The OPU's critical path stays below the vector FMA's.
-  - FP4 pairs: 272 cycles per 32-step block unscaled and 288 with the scale reloads, against 544 and 560 for FP8 (`benchmarks/opu-timing`, `-DRULES=6`). The scale reloads take the same 16 cycles, so they are 5.9% of an FP4 block. FP4 adds 7.0% to the cell's area, and its integer front end lengthens the cell's path from 11.3 to 14.9 ns, still below the vector FMA's.
+  - FP4 pairs: 272 cycles per 32-step block unscaled and 288 with the scale reloads, against 544 and 560 for FP8 (`benchmarks/opu-timing`, `-DRULES=6`). The scale reloads take the same 16 cycles, so they are 5.9% of an FP4 block. FP4 adds 8.6% to the cell's area, and the cell's path stays near 10 ns with or without it, below the vector FMA's.
 - **Tests.** `models/run_opu_check.sh` checks one cell against an exact reference: 2,228,224 multiply-accumulates, 786,432 of them scaled. `benchmarks/opu-scaled-gemm` checks three 64×64×96 scaled GEMMs bit for bit, on the P3109, P3109-finite and OCP configs: block reloads, scale-cache eviction on every instruction, and `vs1 = vs2`. On the `opuFP4` config, the cell check adds 1,114,112 FP4 multiply-accumulates (every `a0, a1, b0, b1`, unscaled and with six scale pairs), and `opu-scaled-gemm -DFP4` adds a 64×64×96 FP4 GEMM with a NaN element and a zero scale.
