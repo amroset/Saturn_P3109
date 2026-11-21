@@ -164,6 +164,21 @@ class P3109BlockDotBuf4V256D128ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// Evaluation only: scale-buffer size sweep (1, 2, 4, 8 registers per port)
+class P3109BlockDotBuf2V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(scaleBufRegs = 2)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotBuf8V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(scaleBufRegs = 8)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 class P3109BlockDotSharedV256D128ShuttleConfig extends Config(
   new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(sharedScaleRegs = true)) ++
   new chipyard.config.WithSystemBusWidth(128) ++
@@ -342,5 +357,66 @@ class MXV512D256ShuttleCosimConfig extends Config(
   new chipyard.config.WithSystemBusWidth(256) ++
   new shuttle.common.WithShuttleDebugROB ++
   new shuttle.common.WithShuttleTileBeatBytes(32) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// Evaluation only (LQ1/LQ2): the vfdot4 configs with the load issue queue of the OPU configs (8 entries)
+class P3109BlockDotLiq8V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(vliqEntries = 8)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotSharedLiq8V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(vliqEntries = 8, sharedScaleRegs = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotBuf4Liq8V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(vliqEntries = 8, scaleBufRegs = 4)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// Evaluation only (buffer study): the explicit-operand emulation with a forced
+// scale-buffer miss per instruction
+class P3109BlockDotSharedForceMissV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(sharedScaleRegs = true, scaleForceMiss = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+// IQ1 (evaluation only): dispatch-stall trace; deeper execute issue queues
+
+class P3109BlockDotTraceV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(dispatchTrace = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotSharedTraceV256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(sharedScaleRegs = true, dispatchTrace = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotIQ12V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(vxissqEntries = 12, dispatchTrace = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class P3109BlockDotSharedIQ12V256D128ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.p3109BlockDotParams.copy(sharedScaleRegs = true, vxissqEntries = 12, dispatchTrace = true)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)

@@ -40,6 +40,21 @@ class OPUV256D128P3109BlockS8ShuttleConfig extends Config(
   new shuttle.common.WithNShuttleCores(1) ++
   new chipyard.config.AbstractConfig)
 
+// Evaluation only: OPU scale-cache size sweep (2, 4, 8, 16 entries)
+class OPUV256D128P3109BlockS2ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109BlockParams.copy(opuScaleEntries = 2)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
+class OPUV256D128P3109BlockS16ShuttleConfig extends Config(
+  new saturn.shuttle.WithShuttleVectorUnit(256, 128, VectorParams.opuP3109BlockParams.copy(opuScaleEntries = 16)) ++
+  new chipyard.config.WithSystemBusWidth(128) ++
+  new shuttle.common.WithShuttleTileBeatBytes(16) ++
+  new shuttle.common.WithNShuttleCores(1) ++
+  new chipyard.config.AbstractConfig)
+
 // Evaluation only: OPU scale registers shared by both data sets of a
 // double-buffered kernel, the best case for explicit scale operands
 class OPUV256D128P3109BlockSharedShuttleConfig extends Config(

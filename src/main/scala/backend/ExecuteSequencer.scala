@@ -93,6 +93,8 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   val sc_tag_valid = RegInit(VecInit(Seq.fill(3)(VecInit(Seq.fill(nScSlots)(false.B)))))
   val sc_tag    = Reg(Vec(3, Vec(nScSlots, UInt(log2Ceil(egsTotal).W))))
   val sc_ptr    = RegInit(VecInit(Seq.fill(3)(0.U(log2Ceil(nScSlots).max(1).W))))
+  // scaleForceMiss: set once the instruction has read its scales
+  val sc_forced = RegInit(false.B)
 
   val compress = inst.opmf6 === OPMFunct6.compress && usesCompress.B
   val acc_copy = (vd_eew === 3.U && (dLenB == 8).B) || elementwise
@@ -251,7 +253,7 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   for (p <- 0 until 3) {
     val held  = VecInit((0 until nScSlots).map(s => sc_tag_valid(p)(s) && sc_tag(p)(s) === sc_eg(p))).asUInt
     val empty = VecInit(sc_tag_valid(p).map(!_)).asUInt
-    sc_hit(p) := held.orR && !io.older_writes(sc_eg(p))
+    sc_hit(p) := held.orR && !io.older_writes(sc_eg(p)) && !(vParams.scaleForceMiss.B && !sc_forced)
     // the slot an issue reads, or a fill writes: the one holding the group
     // (also when stale, so a group never sits in two slots), else an empty
     // one, else the round-robin one
@@ -301,6 +303,8 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
   // and a fill of the same group in one cycle leave it invalid).
   val sc_fire = sphase && !raw_hazard &&
     !(ren1 && !io.rvs1.ready) && !(ren2 && !io.rvs2.ready) && !(rend && !io.rvd.ready)
+  when (sc_fire) { sc_forced := true.B }
+  when (io.dis.fire) { sc_forced := false.B }
   for (p <- 0 until 3) {
     io.scale_fire(p) := sc_fire && sc_miss(p)
     when (io.scale_fire(p)) {

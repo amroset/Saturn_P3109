@@ -12,6 +12,8 @@
 //   unscaled  the same loop without scales: the bound for any scale scheme
 //   baseline  the best sequence of unscaled instructions (no scaled mode)
 //   -DNOCOPY  rule A without its copies: timing only, the copies' share of rule A's cost
+//   -DSCHED   rule A with each block's copies after the first iteration's loads instead of
+//             before the loop, so the loads are in flight while the copies wait for the scales
 //             (lanes 1-3 read stale scales, so outputs differ by design)
 //   scalar    for one or two scales per instruction (E = 32, 16): the unscaled loop plus a
 //             scalar load of each scale, an estimate of an explicit scalar
@@ -62,6 +64,16 @@ static inline void vset(unsigned long vt) { asm volatile("vsetvl x0, %0, %1" : :
 #define COPY(s)
 #else
 #define COPY(s) asm volatile(s)
+#endif
+// The x4 loop over one block's columns; under -DSCHED its first iteration is peeled and
+// issues the block's copies between its loads and the rest of its body
+#ifdef SCHED
+#define PRECOPY(s)
+#define ROWLOOP(k, b, loads, copies, rest) do { int k = (b) * VL; loads; if (scaled) COPY(copies); rest; \
+		for (k += 4; k < ((b) + 1) * VL; k += 4) { loads; rest; } } while (0)
+#else
+#define PRECOPY(s) COPY(s)
+#define ROWLOOP(k, b, loads, copies, rest) do { for (int k = (b) * VL; k < ((b) + 1) * VL; k += 4) { loads; rest; } } while (0)
 #endif
 #define LD8(v, p)  asm volatile("vle8.v "  v ", (%0)" : : "r"(p) : "memory")
 #define LD16(v, p) asm volatile("vle16.v " v ", (%0)" : : "r"(p) : "memory")
@@ -150,6 +162,7 @@ static unsigned long stop(const volatile void *last) {
 }
 
 // ---- quantrow: BF16 -> FP8 across rows, x4 ---------------------------------
+#define QR_COPIES "vmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9"
 static void quantrow_scaled(int scaled) {
 	for (int b = 0; b < KB; b++) {
 		vset(VT_E8);
@@ -158,15 +171,14 @@ static void quantrow_scaled(int scaled) {
 			LD8("v29", srow[b]);                                      // vd's shared scales
 #else
 			LD8("v9", srow[b]);                                       // rule A: a copy per vd
-			COPY("vmv.v.v v11, v9\n\tvmv.v.v v13, v9\n\tvmv.v.v v15, v9");
+			PRECOPY(QR_COPIES);
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
-		for (int k = b * VL; k < (b + 1) * VL; k += 4) {
-			LD16("v16", X[k]); LD16("v18", X[k + 1]); LD16("v20", X[k + 2]); LD16("v22", X[k + 3]);
-			NCVT("x8", "x16"); NCVT("x10", "x18"); NCVT("x12", "x20"); NCVT("x14", "x22");
-			ST8("v8", Q[k]); ST8("v10", Q[k + 1]); ST8("v12", Q[k + 2]); ST8("v14", Q[k + 3]);
-		}
+		ROWLOOP(k, b, { LD16("v16", X[k]); LD16("v18", X[k + 1]); LD16("v20", X[k + 2]); LD16("v22", X[k + 3]); },
+			QR_COPIES,
+			{ NCVT("x8", "x16"); NCVT("x10", "x18"); NCVT("x12", "x20"); NCVT("x14", "x22");
+			  ST8("v8", Q[k]); ST8("v10", Q[k + 1]); ST8("v12", Q[k + 2]); ST8("v14", Q[k + 3]); });
 	}
 }
 static void quantrow_base(void) {
@@ -186,6 +198,9 @@ static void quantrow_base(void) {
 
 // ---- addrow: FP8 block add across rows, x4 ---------------------------------
 // vfadd.vv vd, vs2, vs1: x in vs2, r in vs1, y in vd
+#define AR_COPIES "vmv.v.v v9, v3\n\tvmv.v.v v11, v5\n\tvmv.v.v v13, v7\n\t" \
+	"vmv.v.v v15, v3\n\tvmv.v.v v17, v5\n\tvmv.v.v v19, v7\n\t" \
+	"vmv.v.v v21, v3\n\tvmv.v.v v23, v5\n\tvmv.v.v v25, v7"
 static void addrow_scaled(int scaled) {
 	for (int b = 0; b < KB; b++) {
 		vset(VT_E8);
@@ -196,29 +211,28 @@ static void addrow_scaled(int scaled) {
 			// rule A: lane L uses x in v(6L+2), r in v(6L+4), y in v(6L+6)... with
 			// scales in the next register: nine copies per block
 			LD8("v3", sx[b]); LD8("v5", sr[b]); LD8("v7", sy[b]);
-			COPY("vmv.v.v v9, v3\n\tvmv.v.v v11, v5\n\tvmv.v.v v13, v7\n\t"
-			             "vmv.v.v v15, v3\n\tvmv.v.v v17, v5\n\tvmv.v.v v19, v7\n\t"
-			             "vmv.v.v v21, v3\n\tvmv.v.v v23, v5\n\tvmv.v.v v25, v7");
+			PRECOPY(AR_COPIES);
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
-		for (int k = b * VL; k < (b + 1) * VL; k += 4) {
 #ifdef SHARED
+		for (int k = b * VL; k < (b + 1) * VL; k += 4) {
 			LD8("v2", xa[k]);  LD8("v10", ra[k]);
 			LD8("v4", xa[k+1]); LD8("v12", ra[k+1]);
 			LD8("v6", xa[k+2]); LD8("v14", ra[k+2]);
 			LD8("v8", xa[k+3]); LD8("v16", ra[k+3]);
 			asm volatile("vfadd.vv v18, v2, v10\n\tvfadd.vv v20, v4, v12\n\tvfadd.vv v22, v6, v14\n\tvfadd.vv v24, v8, v16");
 			ST8("v18", ya[k]); ST8("v20", ya[k+1]); ST8("v22", ya[k+2]); ST8("v24", ya[k+3]);
+		}
 #else
-			LD8("v2", xa[k]);   LD8("v4", ra[k]);
+		ROWLOOP(k, b, { LD8("v2", xa[k]);   LD8("v4", ra[k]);
 			LD8("v8", xa[k+1]); LD8("v10", ra[k+1]);
 			LD8("v14", xa[k+2]); LD8("v16", ra[k+2]);
-			LD8("v20", xa[k+3]); LD8("v22", ra[k+3]);
-			asm volatile("vfadd.vv v6, v2, v4\n\tvfadd.vv v12, v8, v10\n\tvfadd.vv v18, v14, v16\n\tvfadd.vv v24, v20, v22");
-			ST8("v6", ya[k]); ST8("v12", ya[k+1]); ST8("v18", ya[k+2]); ST8("v24", ya[k+3]);
+			LD8("v20", xa[k+3]); LD8("v22", ra[k+3]); },
+			AR_COPIES,
+			{ asm volatile("vfadd.vv v6, v2, v4\n\tvfadd.vv v12, v8, v10\n\tvfadd.vv v18, v14, v16\n\tvfadd.vv v24, v20, v22");
+			  ST8("v6", ya[k]); ST8("v12", ya[k+1]); ST8("v18", ya[k+2]); ST8("v24", ya[k+3]); });
 #endif
-		}
 	}
 }
 // baseline: widen both to BF16, scale, add, unscale, narrow (x2: registers)
@@ -241,6 +255,7 @@ static void addrow_base(void) {
 }
 
 // ---- gemv: y += W[:, j] x[j], x4 -------------------------------------------
+#define GV_COPIES "vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3"
 static void gemv_scaled(int scaled) {
 	vset(VT_BF16);
 	asm volatile("vmv.v.i v8, 0\n\tvmv.v.i v10, 0\n\tvmv.v.i v12, 0\n\tvmv.v.i v14, 0");
@@ -251,17 +266,16 @@ static void gemv_scaled(int scaled) {
 			LD8("v30", sW[b]);
 #else
 			LD8("v3", sW[b]);
-			COPY("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
+			PRECOPY(GV_COPIES);
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
-		for (int j = b * VL; j < (b + 1) * VL; j += 4) {
-			LD8("v2", W[j]); LD8("v4", W[j + 1]); LD8("v6", W[j + 2]); LD8("v16", W[j + 3]);
-			asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v8, f0, v2" : : "r"(0xFFFFFF00u | xg[j]) : "f0");
-			asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v10, f0, v4" : : "r"(0xFFFFFF00u | xg[j + 1]) : "f0");
-			asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v12, f0, v6" : : "r"(0xFFFFFF00u | xg[j + 2]) : "f0");
-			asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v14, f0, v16" : : "r"(0xFFFFFF00u | xg[j + 3]) : "f0");
-		}
+		ROWLOOP(j, b, { LD8("v2", W[j]); LD8("v4", W[j + 1]); LD8("v6", W[j + 2]); LD8("v16", W[j + 3]); },
+			GV_COPIES,
+			{ asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v8, f0, v2" : : "r"(0xFFFFFF00u | xg[j]) : "f0");
+			  asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v10, f0, v4" : : "r"(0xFFFFFF00u | xg[j + 1]) : "f0");
+			  asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v12, f0, v6" : : "r"(0xFFFFFF00u | xg[j + 2]) : "f0");
+			  asm volatile("fmv.w.x f0, %0\n\tvfwmacc.vf v14, f0, v16" : : "r"(0xFFFFFF00u | xg[j + 3]) : "f0"); });
 	}
 	vset(VT_BF16);
 	asm volatile("vfadd.vv v8, v8, v10\n\tvfadd.vv v12, v12, v14\n\tvfadd.vv v8, v8, v12");
@@ -367,6 +381,7 @@ static void quant_base(void) {
 }
 
 // ---- dequantrow: FP8 -> BF16 across rows, x4 -------------------------------
+#define DR_COPIES "vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3"
 static void dequantrow_scaled(int scaled) {
 	for (int b = 0; b < KB; b++) {
 		vset(VT_E8);
@@ -375,15 +390,14 @@ static void dequantrow_scaled(int scaled) {
 			LD8("v30", srow[b]);
 #else
 			LD8("v3", srow[b]);
-			COPY("vmv.v.v v5, v3\n\tvmv.v.v v7, v3\n\tvmv.v.v v17, v3");
+			PRECOPY(DR_COPIES);
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
-		for (int k = b * VL; k < (b + 1) * VL; k += 4) {
-			LD8("v2", xa[k]); LD8("v4", xa[k + 1]); LD8("v6", xa[k + 2]); LD8("v16", xa[k + 3]);
-			WCVT("x8", "x2"); WCVT("x10", "x4"); WCVT("x12", "x6"); WCVT("x14", "x16");
-			ST16("v8", Yb[k]); ST16("v10", Yb[k + 1]); ST16("v12", Yb[k + 2]); ST16("v14", Yb[k + 3]);
-		}
+		ROWLOOP(k, b, { LD8("v2", xa[k]); LD8("v4", xa[k + 1]); LD8("v6", xa[k + 2]); LD8("v16", xa[k + 3]); },
+			DR_COPIES,
+			{ WCVT("x8", "x2"); WCVT("x10", "x4"); WCVT("x12", "x6"); WCVT("x14", "x16");
+			  ST16("v8", Yb[k]); ST16("v10", Yb[k + 1]); ST16("v12", Yb[k + 2]); ST16("v14", Yb[k + 3]); });
 	}
 }
 static void dequantrow_base(void) {
@@ -405,6 +419,8 @@ static void dequantrow_base(void) {
 
 // ---- smulrow: ScaledMultiply across rows, x4 (vfwmul.vv vd, vs2 = x, vs1 = w)
 // rule A: x in v2 v6 v18 v22, w in v4 v16 v20 v24, each with its scales next
+#define SR_COPIES "vmv.v.v v7, v3\n\tvmv.v.v v19, v3\n\tvmv.v.v v23, v3\n\t" \
+	"vmv.v.v v17, v5\n\tvmv.v.v v21, v5\n\tvmv.v.v v25, v5"
 static void smulrow_scaled(int scaled) {
 	for (int b = 0; b < KB; b++) {
 		vset(VT_E8);
@@ -413,17 +429,15 @@ static void smulrow_scaled(int scaled) {
 			LD8("v30", sx[b]); LD8("v31", sr[b]);
 #else
 			LD8("v3", sx[b]); LD8("v5", sr[b]);
-			COPY("vmv.v.v v7, v3\n\tvmv.v.v v19, v3\n\tvmv.v.v v23, v3\n\t"
-			             "vmv.v.v v17, v5\n\tvmv.v.v v21, v5\n\tvmv.v.v v25, v5");
+			PRECOPY(SR_COPIES);
 #endif
 		}
 		vset(scaled ? VT_E8S(0) : VT_E8);
-		for (int k = b * VL; k < (b + 1) * VL; k += 4) {
-			LD8("v2", xa[k]); LD8("v4", ra[k]); LD8("v6", xa[k + 1]); LD8("v16", ra[k + 1]);
-			LD8("v18", xa[k + 2]); LD8("v20", ra[k + 2]); LD8("v22", xa[k + 3]); LD8("v24", ra[k + 3]);
-			asm volatile("vfwmul.vv v8, v2, v4\n\tvfwmul.vv v10, v6, v16\n\tvfwmul.vv v12, v18, v20\n\tvfwmul.vv v14, v22, v24");
-			ST16("v8", Yb[k]); ST16("v10", Yb[k + 1]); ST16("v12", Yb[k + 2]); ST16("v14", Yb[k + 3]);
-		}
+		ROWLOOP(k, b, { LD8("v2", xa[k]); LD8("v4", ra[k]); LD8("v6", xa[k + 1]); LD8("v16", ra[k + 1]);
+			LD8("v18", xa[k + 2]); LD8("v20", ra[k + 2]); LD8("v22", xa[k + 3]); LD8("v24", ra[k + 3]); },
+			SR_COPIES,
+			{ asm volatile("vfwmul.vv v8, v2, v4\n\tvfwmul.vv v10, v6, v16\n\tvfwmul.vv v12, v18, v20\n\tvfwmul.vv v14, v22, v24");
+			  ST16("v8", Yb[k]); ST16("v10", Yb[k + 1]); ST16("v12", Yb[k + 2]); ST16("v14", Yb[k + 3]); });
 	}
 }
 static void smulrow_base(void) { // widen both, scale both, multiply (x2: registers)
@@ -565,8 +579,16 @@ static void quant16_base(void) {
 #else
 #define SCHEME "ruleA"
 #endif
+// -DWINDOWS also prints each timed window's first and last mcycle, to match it
+// with a hardware trace
+#ifdef WINDOWS
+#define WINDOW(label, tot) printf("WINDOW %s %s %lu %lu\n", kernel, label, t0, t0 + (tot))
+#else
+#define WINDOW(label, tot)
+#endif
 #define TIME(label, call, last, out, n) do { \
-		call; start(last); for (int r_ = 0; r_ < REPS; r_++) { call; } unsigned long c = stop(last) / REPS; \
+		call; start(last); for (int r_ = 0; r_ < REPS; r_++) { call; } unsigned long tot_ = stop(last), c = tot_ / REPS; \
+		WINDOW(label, tot_); \
 		printf("RESULT %-9s %-9s %7lu cycles  %lu.%03lu cycles/element  checksum %08lx\n", kernel, label, c, \
 		       c / (elems), c * 1000 / (elems) % 1000, (unsigned long)checksum(out, n)); \
 	} while (0)

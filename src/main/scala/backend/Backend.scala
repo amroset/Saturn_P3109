@@ -283,6 +283,15 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     group.issq.io.deq.ready := (valid_seqs & ready_seqs) =/= 0.U
   }
 
+  if (vParams.dispatchTrace) {
+    val trace = Module(new DispatchTrace(issGroups.size))
+    trace.io.clock := clock
+    trace.io.reset := reset.asBool
+    trace.io.empty := !vdq.io.deq.valid
+    trace.io.full := !io.dis.ready
+    trace.io.stall := Mux(vdq.io.deq.valid, issq_stall.asUInt, 0.U)
+  }
+
   // ======================================
   // Connect reads to VRF
 
@@ -656,4 +665,34 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
   val scalar_write_arb = Module(new Arbiter(new ScalarWrite, flat_vxus.size))
   vxus.flatten.map(_.io.scalar_write).zip(scalar_write_arb.io.in).foreach { case (i,o) => o <> i }
   io.scalar_resp <> scalar_write_arb.io.out
+}
+
+// Evaluation only: cumulative counts of cycles with an empty dispatch queue, a
+// full one, and dispatch stalled on each issue queue (load, store, permute,
+// then the execute queues), written every 32 cycles when run with +dtrace
+class DispatchTrace(n: Int) extends BlackBox with HasBlackBoxInline {
+  val io = IO(new Bundle {
+    val clock = Input(Clock())
+    val reset = Input(Bool())
+    val empty = Input(Bool())
+    val full = Input(Bool())
+    val stall = Input(UInt(n.W))
+  })
+  val fields = (0 until n).map(i => s"cs[$i]").mkString(", ")
+  setInline("DispatchTrace.v", s"""
+module DispatchTrace(input clock, input reset, input empty, input full, input [${n - 1}:0] stall);
+  reg en; reg [63:0] cyc; reg [31:0] ce, cf; reg [31:0] cs [0:${n - 1}]; integer i;
+  initial begin
+    en = $$test$$plusargs("dtrace"); cyc = 0; ce = 0; cf = 0;
+    for (i = 0; i < $n; i = i + 1) cs[i] = 0;
+  end
+  always @(posedge clock) if (!reset) begin
+    cyc <= cyc + 1;
+    if (empty) ce <= ce + 1;
+    if (full) cf <= cf + 1;
+    for (i = 0; i < $n; i = i + 1) if (stall[i]) cs[i] <= cs[i] + 1;
+    if (en && cyc[4:0] == 0) $$fwrite(32'h80000002, "DT %0d %0d %0d ${(0 until n).map(_ => "%0d").mkString(" ")}\\n", cyc, ce, cf, $fields);
+  end
+endmodule
+""")
 }

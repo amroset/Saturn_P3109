@@ -479,6 +479,12 @@ case class VectorParams(
   // fixed registers, vs1 from v31, vs2 from v30, vd from v29, instead of vN+1
   // (rule A), as a kernel would that names one shared scale register per operand
   sharedScaleRegs: Boolean = false,
+  // Evaluation only (buffer study): every scaled instruction misses once in the
+  // scale buffer, as with a buffer too small for the kernel's scale registers
+  scaleForceMiss: Boolean = false,
+  // Evaluation only (dispatch study): with +dtrace, write every 32 cycles the
+  // cumulative cycles dispatch stalled on each full issue queue
+  dispatchTrace: Boolean = false,
   // Evaluation only (area study): rule A at LMUL 1 only, scales always in vN+1 as
   // one register; the logic a scale-register field in the instruction would need
   scaleLmul1: Boolean = false,
