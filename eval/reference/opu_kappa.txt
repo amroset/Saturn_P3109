@@ -1,0 +1,21 @@
+scenario     fmt     B  blocks  max k  mean k    k=0  bound 2B
+mixed-sign   p4     16   10000    256   0.489  75.0%        32
+mixed-sign   p4     32   10000   1952   1.307  53.2%        64
+mixed-sign   p4    128    2500    466   2.799  27.0%       256
+mixed-sign   p3     16   10000  50833   6.273  71.8%        32
+mixed-sign   p3     32   10000   2756   1.669  57.5%        64
+mixed-sign   p3    128    2500   2814   3.066  34.7%       256
+same-sign    p4     16   10000      2   0.225  77.9%        32
+same-sign    p4     32   10000      3   0.427  60.0%        64
+same-sign    p4    128    2500      6   1.082  29.1%       256
+same-sign    p3     16   10000      2   0.269  73.5%        32
+same-sign    p3     32   10000      3   0.438  59.3%        64
+same-sign    p3    128    2500      6   1.066  30.2%       256
+absorption   B=16   kappa 7  (bound 32)
+cancellation B=16   kappa 961675264
+absorption   B=32   kappa 15  (bound 64)
+cancellation B=32   kappa 971046912
+absorption   B=128  kappa 60  (bound 256)
+cancellation B=128  kappa 988561408
+overflow: OPU inf, defined 2.552e+38 -> inf-mismatch
+overflow then -Inf: OPU nan, defined -inf -> nan-mismatch

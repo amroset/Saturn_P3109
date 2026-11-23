@@ -1,3 +1,6 @@
+> **This fork** adds IEEE P3109 arithmetic, block scaling, FP4 and `vfdot4` (branch `dotprod`).
+> To run its tests and experiments, see [REPRODUCE.md](REPRODUCE.md).
+
 The Saturn Vector Unit
 ====================================
 

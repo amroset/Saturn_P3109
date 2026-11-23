@@ -1,0 +1,1501 @@
+{
+ "explicit": {
+  "quantrow": {
+   "ruleA": {
+    "cycles": {
+     "median": 1853.0,
+     "min": 1834,
+     "max": 1889,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0013456023915672,
+     "min": 0.9941489361702127,
+     "max": 1.0202185792349727,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 1844.5,
+     "min": 1823,
+     "max": 1887,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 3027.0,
+     "min": 3018,
+     "max": 3090,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.6442663681695648,
+     "min": 1.6357723577235772,
+     "max": 1.6604498080087768,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 1888.5,
+     "min": 1848,
+     "max": 1917,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.028906162895968,
+     "min": 0.9793322734499205,
+     "max": 1.0424143556280587,
+     "n": 8
+    }
+   }
+  },
+  "addrow": {
+   "ruleA": {
+    "cycles": {
+     "median": 3122.0,
+     "min": 2917,
+     "max": 3125,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0942875571281143,
+     "min": 1.0340304856433888,
+     "max": 1.0988740323715693,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 2846.5,
+     "min": 2818,
+     "max": 2856,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 8013.5,
+     "min": 8008,
+     "max": 8067,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.81468503419042,
+     "min": 2.804971988795518,
+     "max": 2.8626685592618877,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 2903.5,
+     "min": 2829,
+     "max": 2907,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.019305021683422,
+     "min": 1.0028358738036158,
+     "max": 1.0228712174524983,
+     "n": 8
+    }
+   }
+  },
+  "gemv": {
+   "ruleA": {
+    "cycles": {
+     "median": 3282.5,
+     "min": 3241,
+     "max": 3286,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0065909569349212,
+     "min": 1.0052051439069198,
+     "max": 1.007766387076732,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 3261.0,
+     "min": 3219,
+     "max": 3266,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 3575.5,
+     "min": 3574,
+     "max": 3592,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0964872170883087,
+     "min": 1.0949464012251149,
+     "max": 1.11587449518484,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 3267.0,
+     "min": 3262,
+     "max": 3272,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0018399265759648,
+     "min": 1.0012247397428047,
+     "max": 1.0146008077042559,
+     "n": 8
+    }
+   }
+  },
+  "dequant": {
+   "ruleA": {
+    "cycles": {
+     "median": 704.5,
+     "min": 698,
+     "max": 712,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5474591633854429,
+     "min": 1.517391304347826,
+     "max": 1.5695364238410596,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 454.5,
+     "min": 452,
+     "max": 460,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "scalar": {
+    "cycles": {
+     "median": 486.0,
+     "min": 473,
+     "max": 499,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0634969766772242,
+     "min": 1.0327510917030567,
+     "max": 1.0991189427312775,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 948.0,
+     "min": 931,
+     "max": 965,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.076540850453894,
+     "min": 2.032751091703057,
+     "max": 2.130242825607064,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 715.5,
+     "min": 712,
+     "max": 722,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5695844130914676,
+     "min": 1.5543478260869565,
+     "max": 1.5938189845474613,
+     "n": 8
+    }
+   }
+  },
+  "quant": {
+   "ruleA": {
+    "cycles": {
+     "median": 740.0,
+     "min": 735,
+     "max": 746,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5935162502804996,
+     "min": 1.576017130620985,
+     "max": 1.616557734204793,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 464.0,
+     "min": 459,
+     "max": 469,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "scalar": {
+    "cycles": {
+     "median": 479.0,
+     "min": 468,
+     "max": 487,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.029185989976812,
+     "min": 1.0021413276231264,
+     "max": 1.0495689655172413,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 978.5,
+     "min": 930,
+     "max": 987,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.1110308564845996,
+     "min": 1.9871794871794872,
+     "max": 2.127155172413793,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 731.0,
+     "min": 724,
+     "max": 734,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.57328589278498,
+     "min": 1.5501066098081024,
+     "max": 1.5925925925925926,
+     "n": 8
+    }
+   }
+  },
+  "dequantrow": {
+   "ruleA": {
+    "cycles": {
+     "median": 1928.0,
+     "min": 1915,
+     "max": 1954,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0195116037235903,
+     "min": 1.0084254870984728,
+     "max": 1.0554649265905383,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 1891.0,
+     "min": 1839,
+     "max": 1908,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 3593.5,
+     "min": 3587,
+     "max": 3906,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.8987432411458487,
+     "min": 1.8825995807127882,
+     "max": 2.1067961165048543,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 1906.5,
+     "min": 1845,
+     "max": 1936,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0077256509940513,
+     "min": 0.9956850053937433,
+     "max": 1.0191489361702128,
+     "n": 8
+    }
+   }
+  },
+  "smulrow": {
+   "ruleA": {
+    "cycles": {
+     "median": 2834.5,
+     "min": 2819,
+     "max": 3031,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0040970157498883,
+     "min": 0.999291031549096,
+     "max": 1.0074573863636365,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 2818.5,
+     "min": 2814,
+     "max": 3023,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 6978.5,
+     "min": 6976,
+     "max": 6983,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.4759712402343874,
+     "min": 2.3076414158121072,
+     "max": 2.4797441364605546,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 2837.0,
+     "min": 2821,
+     "max": 3085,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.007278700502454,
+     "min": 1.0,
+     "max": 1.020509427720807,
+     "n": 8
+    }
+   }
+  },
+  "smul": {
+   "ruleA": {
+    "cycles": {
+     "median": 1479.5,
+     "min": 1464,
+     "max": 1491,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.3349205639512354,
+     "min": 2.2868217054263567,
+     "max": 2.372771474878444,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 634.0,
+     "min": 617,
+     "max": 645,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "scalar": {
+    "cycles": {
+     "median": 808.5,
+     "min": 805,
+     "max": 813,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.2745880937170364,
+     "min": 1.255813953488372,
+     "max": 1.3047001620745542,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 1410.5,
+     "min": 1353,
+     "max": 1418,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.2251184834123223,
+     "min": 2.1206896551724137,
+     "max": 2.2412698412698413,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 1369.0,
+     "min": 1362,
+     "max": 1378,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.1615211013315276,
+     "min": 2.1271317829457366,
+     "max": 2.233387358184765,
+     "n": 8
+    }
+   }
+  },
+  "dequant16": {
+   "ruleA": {
+    "cycles": {
+     "median": 706.5,
+     "min": 698,
+     "max": 711,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.536508658254708,
+     "min": 1.5182795698924731,
+     "max": 1.5720620842572062,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 459.0,
+     "min": 451,
+     "max": 465,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "scalar": {
+    "cycles": {
+     "median": 559.0,
+     "min": 540,
+     "max": 565,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.2065305235099792,
+     "min": 1.1764705882352942,
+     "max": 1.2483370288248337,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 1042.0,
+     "min": 1036,
+     "max": 1047,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.2717404146522435,
+     "min": 2.2408602150537633,
+     "max": 2.3015521064301554,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 705.5,
+     "min": 694,
+     "max": 708,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5355177158582731,
+     "min": 1.4924731182795699,
+     "max": 1.565410199556541,
+     "n": 8
+    }
+   }
+  },
+  "quant16": {
+   "ruleA": {
+    "cycles": {
+     "median": 713.0,
+     "min": 707,
+     "max": 719,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5530305514821285,
+     "min": 1.5204301075268818,
+     "max": 1.5648351648351648,
+     "n": 8
+    }
+   },
+   "unscaled": {
+    "cycles": {
+     "median": 461.0,
+     "min": 455,
+     "max": 465,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0,
+     "min": 1.0,
+     "max": 1.0,
+     "n": 8
+    }
+   },
+   "scalar": {
+    "cycles": {
+     "median": 486.0,
+     "min": 477,
+     "max": 496,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.0646956981749103,
+     "min": 1.0302375809935205,
+     "max": 1.0853391684901532,
+     "n": 8
+    }
+   },
+   "baseline": {
+    "cycles": {
+     "median": 1149.5,
+     "min": 1105,
+     "max": 1153,
+     "n": 8
+    },
+    "ratio": {
+     "median": 2.4838500661882534,
+     "min": 2.3969631236442517,
+     "max": 2.5296703296703296,
+     "n": 8
+    }
+   },
+   "shared": {
+    "cycles": {
+     "median": 714.5,
+     "min": 708,
+     "max": 729,
+     "n": 8
+    },
+    "ratio": {
+     "median": 1.5534253857801277,
+     "min": 1.5225806451612902,
+     "max": 1.5951859956236323,
+     "n": 8
+    }
+   }
+  }
+ },
+ "lmul": {
+  "dequant": {
+   "1": {
+    "ruleA": {
+     "median": 710.5,
+     "min": 680,
+     "max": 723,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 507.5,
+     "min": 500,
+     "max": 512,
+     "n": 8
+    },
+    "scalar": {
+     "median": 698.0,
+     "min": 552,
+     "max": 750,
+     "n": 8
+    },
+    "shared": {
+     "median": 719.0,
+     "min": 712,
+     "max": 744,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 500.5,
+     "min": 497,
+     "max": 507,
+     "n": 8
+    }
+   },
+   "2": {
+    "ruleA": {
+     "median": 536.5,
+     "min": 533,
+     "max": 541,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 437.5,
+     "min": 431,
+     "max": 442,
+     "n": 8
+    },
+    "scalar": {
+     "median": 437.0,
+     "min": 425,
+     "max": 441,
+     "n": 8
+    },
+    "shared": {
+     "median": 535.5,
+     "min": 531,
+     "max": 542,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 440.0,
+     "min": 431,
+     "max": 451,
+     "n": 8
+    }
+   },
+   "4": {
+    "ruleA": {
+     "median": 481.0,
+     "min": 477,
+     "max": 484,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 417.5,
+     "min": 415,
+     "max": 423,
+     "n": 8
+    },
+    "scalar": {
+     "median": 419.0,
+     "min": 415,
+     "max": 426,
+     "n": 8
+    },
+    "shared": {
+     "median": 479.0,
+     "min": 473,
+     "max": 488,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 418.0,
+     "min": 414,
+     "max": 425,
+     "n": 8
+    }
+   }
+  },
+  "quant": {
+   "1": {
+    "ruleA": {
+     "median": 756.0,
+     "min": 726,
+     "max": 761,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 510.0,
+     "min": 501,
+     "max": 555,
+     "n": 8
+    },
+    "scalar": {
+     "median": 559.5,
+     "min": 554,
+     "max": 809,
+     "n": 8
+    },
+    "shared": {
+     "median": 750.0,
+     "min": 739,
+     "max": 763,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 503.5,
+     "min": 498,
+     "max": 561,
+     "n": 8
+    }
+   },
+   "2": {
+    "ruleA": {
+     "median": 532.0,
+     "min": 523,
+     "max": 539,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 432.0,
+     "min": 428,
+     "max": 438,
+     "n": 8
+    },
+    "scalar": {
+     "median": 435.5,
+     "min": 423,
+     "max": 449,
+     "n": 8
+    },
+    "shared": {
+     "median": 524.0,
+     "min": 518,
+     "max": 536,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 428.0,
+     "min": 422,
+     "max": 440,
+     "n": 8
+    }
+   },
+   "4": {
+    "ruleA": {
+     "median": 463.0,
+     "min": 460,
+     "max": 468,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 424.0,
+     "min": 419,
+     "max": 433,
+     "n": 8
+    },
+    "scalar": {
+     "median": 420.0,
+     "min": 419,
+     "max": 426,
+     "n": 8
+    },
+    "shared": {
+     "median": 462.5,
+     "min": 460,
+     "max": 467,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 422.5,
+     "min": 419,
+     "max": 425,
+     "n": 8
+    }
+   }
+  },
+  "dequant16": {
+   "1": {
+    "ruleA": {
+     "median": 702.0,
+     "min": 692,
+     "max": 713,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 557.5,
+     "min": 495,
+     "max": 588,
+     "n": 8
+    },
+    "scalar": {
+     "median": 811.0,
+     "min": 553,
+     "max": 813,
+     "n": 8
+    },
+    "shared": {
+     "median": 708.0,
+     "min": 691,
+     "max": 716,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 564.5,
+     "min": 502,
+     "max": 574,
+     "n": 8
+    }
+   },
+   "2": {
+    "ruleA": {
+     "median": 531.5,
+     "min": 525,
+     "max": 537,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 438.0,
+     "min": 427,
+     "max": 445,
+     "n": 8
+    },
+    "scalar": {
+     "median": 438.5,
+     "min": 429,
+     "max": 484,
+     "n": 8
+    },
+    "shared": {
+     "median": 533.5,
+     "min": 529,
+     "max": 542,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 436.0,
+     "min": 433,
+     "max": 439,
+     "n": 8
+    }
+   },
+   "4": {
+    "ruleA": {
+     "median": 476.5,
+     "min": 464,
+     "max": 480,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 418.5,
+     "min": 414,
+     "max": 426,
+     "n": 8
+    },
+    "scalar": {
+     "median": 418.0,
+     "min": 412,
+     "max": 428,
+     "n": 8
+    },
+    "shared": {
+     "median": 476.5,
+     "min": 471,
+     "max": 484,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 415.5,
+     "min": 409,
+     "max": 427,
+     "n": 8
+    }
+   }
+  },
+  "quant16": {
+   "1": {
+    "ruleA": {
+     "median": 726.0,
+     "min": 716,
+     "max": 745,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 509.0,
+     "min": 504,
+     "max": 526,
+     "n": 8
+    },
+    "scalar": {
+     "median": 693.0,
+     "min": 551,
+     "max": 753,
+     "n": 8
+    },
+    "shared": {
+     "median": 729.5,
+     "min": 727,
+     "max": 741,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 505.5,
+     "min": 497,
+     "max": 509,
+     "n": 8
+    }
+   },
+   "2": {
+    "ruleA": {
+     "median": 529.5,
+     "min": 526,
+     "max": 535,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 435.5,
+     "min": 426,
+     "max": 439,
+     "n": 8
+    },
+    "scalar": {
+     "median": 435.0,
+     "min": 428,
+     "max": 441,
+     "n": 8
+    },
+    "shared": {
+     "median": 526.5,
+     "min": 524,
+     "max": 536,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 432.0,
+     "min": 431,
+     "max": 435,
+     "n": 8
+    }
+   },
+   "4": {
+    "ruleA": {
+     "median": 459.0,
+     "min": 457,
+     "max": 460,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 423.0,
+     "min": 417,
+     "max": 425,
+     "n": 8
+    },
+    "scalar": {
+     "median": 420.0,
+     "min": 415,
+     "max": 430,
+     "n": 8
+    },
+    "shared": {
+     "median": 458.0,
+     "min": 455,
+     "max": 466,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 425.5,
+     "min": 418,
+     "max": 429,
+     "n": 8
+    }
+   }
+  },
+  "smul": {
+   "1": {
+    "ruleA": {
+     "median": 1397.5,
+     "min": 1387,
+     "max": 1411,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 713.0,
+     "min": 703,
+     "max": 715,
+     "n": 8
+    },
+    "scalar": {
+     "median": 945.5,
+     "min": 941,
+     "max": 948,
+     "n": 8
+    },
+    "shared": {
+     "median": 1398.0,
+     "min": 1388,
+     "max": 1422,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 706.0,
+     "min": 699,
+     "max": 709,
+     "n": 8
+    }
+   },
+   "2": {
+    "ruleA": {
+     "median": 795.5,
+     "min": 787,
+     "max": 802,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 546.5,
+     "min": 544,
+     "max": 551,
+     "n": 8
+    },
+    "scalar": {
+     "median": 557.0,
+     "min": 548,
+     "max": 562,
+     "n": 8
+    },
+    "shared": {
+     "median": 792.0,
+     "min": 783,
+     "max": 795,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 552.5,
+     "min": 543,
+     "max": 555,
+     "n": 8
+    }
+   },
+   "4": {
+    "ruleA": {
+     "median": 663.0,
+     "min": 653,
+     "max": 669,
+     "n": 8
+    },
+    "unscaled_ruleA": {
+     "median": 559.5,
+     "min": 545,
+     "max": 577,
+     "n": 8
+    },
+    "scalar": {
+     "median": 558.0,
+     "min": 537,
+     "max": 572,
+     "n": 8
+    },
+    "shared": {
+     "median": 661.5,
+     "min": 653,
+     "max": 670,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 555.5,
+     "min": 535,
+     "max": 570,
+     "n": 8
+    }
+   }
+  }
+ },
+ "unroll": {
+  "quantrow": {
+   "1": {
+    "unscaled_ruleA": {
+     "median": 1810.5,
+     "min": 1797,
+     "max": 1821,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 1822.5,
+     "min": 1815,
+     "max": 1833,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 1808.0,
+     "min": 1801,
+     "max": 1820,
+     "n": 8
+    },
+    "shared": {
+     "median": 1828.5,
+     "min": 1821,
+     "max": 1842,
+     "n": 8
+    }
+   },
+   "2": {
+    "unscaled_ruleA": {
+     "median": 1807.0,
+     "min": 1792,
+     "max": 1820,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 1831.0,
+     "min": 1825,
+     "max": 1850,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 1803.0,
+     "min": 1795,
+     "max": 1809,
+     "n": 8
+    },
+    "shared": {
+     "median": 1839.5,
+     "min": 1824,
+     "max": 1860,
+     "n": 8
+    }
+   },
+   "4": {
+    "unscaled_ruleA": {
+     "median": 1805.0,
+     "min": 1794,
+     "max": 1820,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 1826.5,
+     "min": 1812,
+     "max": 1846,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 1816.5,
+     "min": 1796,
+     "max": 1826,
+     "n": 8
+    },
+    "shared": {
+     "median": 1841.5,
+     "min": 1829,
+     "max": 1848,
+     "n": 8
+    }
+   },
+   "8": {
+    "unscaled_ruleA": {
+     "median": 2742.0,
+     "min": 2534,
+     "max": 2749,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 2929.0,
+     "min": 2913,
+     "max": 3083,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 2744.5,
+     "min": 2519,
+     "max": 2748,
+     "n": 8
+    },
+    "shared": {
+     "median": 2788.5,
+     "min": 2572,
+     "max": 2791,
+     "n": 8
+    }
+   }
+  },
+  "addrow": {
+   "1": {
+    "unscaled_ruleA": {
+     "median": 2347.0,
+     "min": 2333,
+     "max": 2351,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 2629.5,
+     "min": 2392,
+     "max": 2636,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 2351.0,
+     "min": 2345,
+     "max": 2363,
+     "n": 8
+    },
+    "shared": {
+     "median": 2389.0,
+     "min": 2387,
+     "max": 2633,
+     "n": 8
+    }
+   },
+   "2": {
+    "unscaled_ruleA": {
+     "median": 2340.0,
+     "min": 2323,
+     "max": 2346,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 2548.0,
+     "min": 2429,
+     "max": 2552,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 2338.5,
+     "min": 2330,
+     "max": 2344,
+     "n": 8
+    },
+    "shared": {
+     "median": 2410.5,
+     "min": 2394,
+     "max": 2455,
+     "n": 8
+    }
+   },
+   "4": {
+    "unscaled_ruleA": {
+     "median": 2874.0,
+     "min": 2731,
+     "max": 2900,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 3089.5,
+     "min": 2873,
+     "max": 3094,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 2894.0,
+     "min": 2733,
+     "max": 2899,
+     "n": 8
+    },
+    "shared": {
+     "median": 2814.5,
+     "min": 2814,
+     "max": 3009,
+     "n": 8
+    }
+   },
+   "5": {
+    "unscaled_ruleA": {
+     "median": 2796.0,
+     "min": 2716,
+     "max": 2799,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 3148.5,
+     "min": 3124,
+     "max": 3167,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 2719.5,
+     "min": 2717,
+     "max": 2798,
+     "n": 8
+    },
+    "shared": {
+     "median": 3036.5,
+     "min": 2895,
+     "max": 3071,
+     "n": 8
+    }
+   },
+   "8": {
+    "unscaled_ruleA": {
+     "median": 3237.5,
+     "min": 3224,
+     "max": 3352,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 3354.5,
+     "min": 3229,
+     "max": 3364,
+     "n": 8
+    },
+    "shared": {
+     "median": 3413.5,
+     "min": 3356,
+     "max": 3441,
+     "n": 8
+    }
+   }
+  },
+  "gemv": {
+   "1": {
+    "unscaled_ruleA": {
+     "median": 4473.0,
+     "min": 4467,
+     "max": 4475,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 4475.0,
+     "min": 4474,
+     "max": 4724,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 4466.5,
+     "min": 4465,
+     "max": 4474,
+     "n": 8
+    },
+    "shared": {
+     "median": 4726.0,
+     "min": 4476,
+     "max": 4727,
+     "n": 8
+    }
+   },
+   "2": {
+    "unscaled_ruleA": {
+     "median": 3614.5,
+     "min": 3607,
+     "max": 3632,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 3651.5,
+     "min": 3642,
+     "max": 3653,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 3631.0,
+     "min": 3608,
+     "max": 3633,
+     "n": 8
+    },
+    "shared": {
+     "median": 3643.0,
+     "min": 3633,
+     "max": 3645,
+     "n": 8
+    }
+   },
+   "4": {
+    "unscaled_ruleA": {
+     "median": 3172.0,
+     "min": 3171,
+     "max": 3188,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 3233.5,
+     "min": 3223,
+     "max": 3236,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 3175.0,
+     "min": 3168,
+     "max": 3187,
+     "n": 8
+    },
+    "shared": {
+     "median": 3201.5,
+     "min": 3199,
+     "max": 3248,
+     "n": 8
+    }
+   },
+   "8": {
+    "unscaled_ruleA": {
+     "median": 3661.0,
+     "min": 3474,
+     "max": 3680,
+     "n": 8
+    },
+    "ruleA": {
+     "median": 3609.0,
+     "min": 3608,
+     "max": 3753,
+     "n": 8
+    },
+    "unscaled_shared": {
+     "median": 3475.5,
+     "min": 3474,
+     "max": 3644,
+     "n": 8
+    },
+    "shared": {
+     "median": 3507.0,
+     "min": 3505,
+     "max": 3660,
+     "n": 8
+    }
+   }
+  }
+ },
+ "checks": [
+  "explicit quantrow: rule A = shared checksum, one value over offsets: True",
+  "explicit addrow: rule A = shared checksum, one value over offsets: True",
+  "explicit gemv: rule A = shared checksum, one value over offsets: True",
+  "explicit dequant: rule A = shared checksum, one value over offsets: True",
+  "explicit quant: rule A = shared checksum, one value over offsets: True",
+  "explicit dequantrow: rule A = shared checksum, one value over offsets: True",
+  "explicit smulrow: rule A = shared checksum, one value over offsets: True",
+  "explicit smul: rule A = shared checksum, one value over offsets: True",
+  "explicit dequant16: rule A = shared checksum, one value over offsets: True",
+  "explicit quant16: rule A = shared checksum, one value over offsets: True",
+  "lmul: one checksum per kernel and LMUL over builds and offsets: True",
+  "lmul: equal across LMUL: True",
+  "unroll: rule A and shared agree, one checksum per kernel and N: True"
+ ]
+}

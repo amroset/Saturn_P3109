@@ -1,0 +1,80 @@
+{
+ "source": "notes/data/sb1-port-2026-11-13 (Q1 method, SB1 sw GEMM); 64 tokens; cycles",
+ "sizes": {
+  "small-256": {
+   "hidden_kv_ffn": [
+    256,
+    64,
+    1408
+   ],
+   "hw": {
+    "total": 1232609,
+    "quantize": 86180,
+    "qkv": 44106,
+    "o": 29274,
+    "gate_up": 319834,
+    "down": 136701,
+    "elementwise": 616514
+   },
+   "sw": {
+    "total": 2510249,
+    "quantize": 113478,
+    "qkv": 150548,
+    "o": 97390,
+    "gate_up": 1045829,
+    "down": 485694,
+    "elementwise": 617310
+   }
+  },
+  "med-448": {
+   "hidden_kv_ffn": [
+    448,
+    64,
+    2432
+   ],
+   "hw": {
+    "total": 2710125,
+    "quantize": 158421,
+    "qkv": 106026,
+    "o": 81309,
+    "gate_up": 870395,
+    "down": 423099,
+    "elementwise": 1070875
+   },
+   "sw": {
+    "total": 6392310,
+    "quantize": 200157,
+    "qkv": 354081,
+    "o": 275978,
+    "gate_up": 3009836,
+    "down": 1481248,
+    "elementwise": 1071010
+   }
+  },
+  "full-896": {
+   "hidden_kv_ffn": [
+    896,
+    128,
+    4864
+   ],
+   "hw": {
+    "total": 8257053,
+    "quantize": 337123,
+    "qkv": 394013,
+    "o": 303683,
+    "gate_up": 3286354,
+    "down": 1780563,
+    "elementwise": 2155317
+   },
+   "sw": {
+    "total": 22989751,
+    "quantize": 419907,
+    "qkv": 1403729,
+    "o": 1093234,
+    "gate_up": 11860374,
+    "down": 6054493,
+    "elementwise": 2158014
+   }
+  }
+ }
+}

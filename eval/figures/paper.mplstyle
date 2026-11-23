@@ -1,0 +1,47 @@
+# Publication figures: Times-like text at 8 pt, thin lines, vector output
+font.family         : STIXGeneral
+mathtext.fontset    : stix
+font.size           : 8
+axes.titlesize      : 8
+axes.labelsize      : 8
+xtick.labelsize     : 8
+ytick.labelsize     : 8
+legend.fontsize     : 8
+
+axes.linewidth      : 0.6
+axes.spines.top     : False
+axes.spines.right   : False
+axes.edgecolor      : black
+axes.labelpad       : 2
+axes.axisbelow      : True
+axes.grid           : False
+grid.color          : 0.85
+grid.linewidth      : 0.4
+
+xtick.direction     : in
+ytick.direction     : in
+xtick.major.width   : 0.6
+ytick.major.width   : 0.6
+xtick.major.size    : 2.5
+ytick.major.size    : 2.5
+xtick.minor.size    : 1.5
+ytick.minor.size    : 1.5
+
+lines.linewidth     : 1.0
+lines.markersize    : 3.5
+patch.linewidth     : 0.3
+hatch.linewidth     : 0.4
+errorbar.capsize    : 1.5
+
+legend.frameon      : False
+legend.handlelength : 1.4
+legend.handletextpad: 0.4
+legend.columnspacing: 1.0
+legend.borderaxespad: 0.3
+
+figure.dpi          : 150
+savefig.dpi         : 300
+savefig.bbox        : tight
+savefig.pad_inches  : 0.01
+pdf.fonttype        : 42
+ps.fonttype         : 42

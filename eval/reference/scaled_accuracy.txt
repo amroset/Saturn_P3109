@@ -1,0 +1,20 @@
+
+== ScaledMultiply, typical scales, |k| <= 20 (20000 pairs)
+   scaled wrong      0 ( 0.00%)  
+   bf16   wrong      0 ( 0.00%)  
+   fp32   wrong      0 ( 0.00%)  
+
+== ScaledMultiply, all scales, k in -127..126 (20000 pairs)
+   scaled wrong      0 ( 0.00%)  
+   bf16   wrong    164 ( 0.82%)  Inf instead of finite: 108, NaN: 1, other: 46, zero instead of nonzero: 9
+   fp32   wrong    109 ( 0.55%)  Inf instead of finite: 108, NaN: 1
+
+== ScaledAdd, typical scales, |k| <= 20 (20000 pairs)
+   scaled wrong      0 ( 0.00%)  
+   bf16   wrong      0 ( 0.00%)  
+   fp32   wrong      0 ( 0.00%)  
+
+== ScaledAdd, all scales, k in -127..126 (20000 pairs)
+   scaled wrong      0 ( 0.00%)  
+   bf16   wrong      0 ( 0.00%)  
+   fp32   wrong      0 ( 0.00%)  

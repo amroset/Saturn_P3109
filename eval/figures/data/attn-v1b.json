@@ -1,0 +1,161 @@
+{
+ "source": "notes/data/v1b-vv-attn-acc4-2026-11-10 (V1b); vfdot4.vv attention scores, 32 heads x 96 x 64 keys; keys kernel|build|variant",
+ "macs": {
+  "attn": 196608
+ },
+ "results": {
+  "attn|pairing|single": {
+   "median": 64874.5,
+   "min": 64811,
+   "max": 64941,
+   "n": 8,
+   "per_layout": [
+    64875,
+    64941,
+    64878,
+    64830,
+    64870,
+    64811,
+    64894,
+    64874
+   ],
+   "mac_per_cycle": 3.0305898311355
+  },
+  "attn|pairing|unroll": {
+   "median": 74888.0,
+   "min": 74792,
+   "max": 74940,
+   "n": 8,
+   "per_layout": [
+    74887,
+    74917,
+    74875,
+    74927,
+    74792,
+    74889,
+    74848,
+    74940
+   ],
+   "mac_per_cycle": 2.6253605384040166
+  },
+  "attn|pairing|unscaled": {
+   "median": 66342.5,
+   "min": 66210,
+   "max": 66429,
+   "n": 8,
+   "per_layout": [
+    66353,
+    66324,
+    66292,
+    66410,
+    66332,
+    66429,
+    66378,
+    66210
+   ],
+   "mac_per_cycle": 2.9635301654294004
+  },
+  "attn|pairing+buf4|single": {
+   "median": 64874.5,
+   "min": 64811,
+   "max": 64941,
+   "n": 8,
+   "per_layout": [
+    64875,
+    64941,
+    64878,
+    64830,
+    64870,
+    64811,
+    64894,
+    64874
+   ],
+   "mac_per_cycle": 3.0305898311355
+  },
+  "attn|pairing+buf4|unroll": {
+   "median": 74884.0,
+   "min": 74832,
+   "max": 74934,
+   "n": 8,
+   "per_layout": [
+    74867,
+    74934,
+    74882,
+    74886,
+    74848,
+    74921,
+    74832,
+    74891
+   ],
+   "mac_per_cycle": 2.625500774531275
+  },
+  "attn|pairing+buf4|unscaled": {
+   "median": 66311.5,
+   "min": 66223,
+   "max": 66437,
+   "n": 8,
+   "per_layout": [
+    66358,
+    66428,
+    66301,
+    66284,
+    66317,
+    66306,
+    66223,
+    66437
+   ],
+   "mac_per_cycle": 2.9649155877939726
+  },
+  "attn|explicit|single": {
+   "median": 64892.5,
+   "min": 64856,
+   "max": 64923,
+   "n": 8,
+   "per_layout": [
+    64899,
+    64867,
+    64918,
+    64912,
+    64856,
+    64886,
+    64885,
+    64923
+   ],
+   "mac_per_cycle": 3.029749200600994
+  },
+  "attn|explicit|unroll": {
+   "median": 71286.0,
+   "min": 71126,
+   "max": 71362,
+   "n": 8,
+   "per_layout": [
+    71312,
+    71278,
+    71182,
+    71294,
+    71337,
+    71362,
+    71251,
+    71126
+   ],
+   "mac_per_cycle": 2.758017001935864
+  },
+  "attn|explicit|unscaled": {
+   "median": 66302.0,
+   "min": 66244,
+   "max": 66440,
+   "n": 8,
+   "per_layout": [
+    66265,
+    66379,
+    66440,
+    66244,
+    66317,
+    66356,
+    66287,
+    66252
+   ],
+   "mac_per_cycle": 2.965340412053935
+  }
+ }
+}

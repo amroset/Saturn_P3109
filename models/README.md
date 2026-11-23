@@ -49,6 +49,7 @@ Checks (each one exits non-zero on any mismatch):
 | `run_conv_check.sh` | `FPConvBlock` RTL against the references |
 | `run_opu_check.sh` | `OuterProductCell` RTL against the references |
 | `run_fma_check.sh` | `SegmentedFMAPipe` RTL in scaled mode (widened lanes) against the references |
+| `run_dot_check.sh` | `ScaledDotLane` RTL (`vfdot4`) against the references |
 | `p3109_test.c` | `p3109.h` against the standard's definitions |
 
 Used by the `run_*.sh` scripts, not run directly:
@@ -63,7 +64,18 @@ Used by the `run_*.sh` scripts, not run directly:
 | `tb_opu_cell.cpp` | `run_opu_check.sh` | Verilator testbench for `OuterProductCell` |
 | `fma_vectors.py` | `run_fma_check.sh` | Expected results for `SegmentedFMAPipe` in scaled mode |
 | `tb_fma_lane.cpp` | `run_fma_check.sh` | Verilator testbench for `SegmentedFMAPipe` |
+| `dot_vectors.py` | `run_dot_check.sh` | Expected results for `ScaledDotLane` |
+| `tb_dot_lane.cpp` | `run_dot_check.sh` | Verilator testbench for `ScaledDotLane` |
 | `collect_hier.py` | all three | Lists a module's files in the generated Verilog |
+
+Accuracy studies (Python only; their outputs as reported are in
+`../eval/reference/`):
+
+| File | Studies |
+|---|---|
+| `accum_study.py` | Rounding error of the OPU's per-step rounding and of `vfdot4` in GEMMs, against quantization error |
+| `scaled_accuracy.py` | Scaled instructions against software scaling in BF16 and FP32 |
+| `opu_kappa.py` | Accuracy κ of `OPFMACC.S` as an implementation of BlockDotProduct |
 
 The rounder wrappers that `run_rounder_check.sh` tests are in
 `src/test/scala/P3109TestWrappers.scala`.
